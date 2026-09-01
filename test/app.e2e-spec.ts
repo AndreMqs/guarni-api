@@ -19,12 +19,26 @@ describe('App (e2e)', () => {
     await app.init();
   });
 
-  it('/v1/health (GET)', () => {
-    return request(app.getHttpServer()).get('/v1/health').expect(200).expect({
+  it('/v1/health (GET)', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/v1/health')
+      .expect(200);
+
+    expect(response.body).toEqual({
       status: 'ok',
-      info: {},
+      info: {
+        database: {
+          responseTime: expect.any(Number),
+          status: 'up',
+        },
+      },
       error: {},
-      details: {},
+      details: {
+        database: {
+          responseTime: expect.any(Number),
+          status: 'up',
+        },
+      },
     });
   });
 

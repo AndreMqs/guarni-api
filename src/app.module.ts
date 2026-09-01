@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import Joi from 'joi';
 import { HealthModule } from './health/health.module.js';
+import { DatabaseModule } from './database/database.module.js';
 
 @Module({
   imports: [
@@ -15,9 +16,13 @@ import { HealthModule } from './health/health.module.js';
         WEB_ORIGIN: Joi.string()
           .uri({ scheme: ['http', 'https'] })
           .required(),
+        DATABASE_URL: Joi.string()
+          .uri({ scheme: ['postgresql'] })
+          .required(),
       }),
     }),
     HealthModule,
+    DatabaseModule
   ],
 })
 export class AppModule {}

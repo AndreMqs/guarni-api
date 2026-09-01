@@ -1,32 +1,79 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { HealthCheckService } from '@nestjs/terminus';
+import {
+  HealthCheckService,
+  TypeOrmHealthIndicator,
+} from '@nestjs/terminus';
+
 import { HealthController } from './health.controller.js';
 
 describe('HealthController', () => {
   let controller: HealthController;
+
+  const databaseHealth = {
+    database: {
+      status: 'up' as const,
+    },
+  };
+
   const health = {
     status: 'ok' as const,
-    info: {},
+    info: databaseHealth,
     error: {},
-    details: {},
+    details: databaseHealth,
   };
+
   const healthCheckService = {
-    check: vi.fn().mockResolvedValue(health),
+    check: vi.fn(
+      async (indicators: Array<() => Promise<unknown>>) => {
+        await Promise.all(
+          indicators.map((indicator) => indicator()),
+        );
+
+        return health;
+      },
+    ),
+  };
+
+  const databaseHealthIndicator = {
+    pingCheck: vi.fn(
+      async (_key: string) => databaseHealth,
+    ),
   };
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [HealthController],
-      providers: [
-        { provide: HealthCheckService, useValue: healthCheckService },
-      ],
-    }).compile();
+    vi.clearAllMocks();
 
-    controller = module.get<HealthController>(HealthController);
+    const module: TestingModule =
+      await Test.createTestingModule({
+        controllers: [HealthController],
+        providers: [
+          {
+            provide: HealthCheckService,
+            useValue: healthCheckService,
+          },
+          {
+            provide: TypeOrmHealthIndicator,
+            useValue: databaseHealthIndicator,
+          },
+        ],
+      }).compile();
+
+    controller = module.get<HealthController>(
+      HealthController,
+    );
   });
 
-  it('returns the application health status', async () => {
-    await expect(controller.check()).resolves.toEqual(health);
-    expect(healthCheckService.check).toHaveBeenCalledWith([]);
+  it('returns the application and database health status', async () => {
+    await expect(controller.check()).resolves.toEqual(
+      health,
+    );
+
+    expect(
+      healthCheckService.check,
+    ).toHaveBeenCalledWith([expect.any(Function)]);
+
+    expect(
+      databaseHealthIndicator.pingCheck,
+    ).toHaveBeenCalledWith('database');
   });
 });

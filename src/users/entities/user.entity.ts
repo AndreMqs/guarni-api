@@ -6,18 +6,24 @@ import {
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
-import { usersPrimaryKeyConstraint, usernameUniqueConstraint } from '../users.constants.js';
+import {
+  usersPrimaryKeyConstraint,
+  usernameUniqueConstraint,
+  userFieldLimits,
+} from '../users.constants.js';
 
 @Entity('users')
 @Unique(usernameUniqueConstraint, ['username'])
 export class User {
-  @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: usersPrimaryKeyConstraint })
+  @PrimaryGeneratedColumn('uuid', {
+    primaryKeyConstraintName: usersPrimaryKeyConstraint,
+  })
   id!: string;
 
-  @Column({ type: 'varchar', length: 120 })
+  @Column({ type: 'varchar', length: userFieldLimits.name.maxLength })
   name!: string;
 
-  @Column({ type: 'varchar', length: 60 })
+  @Column({ type: 'varchar', length: userFieldLimits.username.maxLength })
   username!: string;
 
   @Column({ type: 'text' })

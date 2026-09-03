@@ -1,33 +1,51 @@
 import { Transform } from 'class-transformer';
 import { IsString, Length, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import {
+  userFieldLimits,
+  usernameAllowedCharactersPattern,
+  userValidationMessages,
+} from '../users.constants.js';
 
 export class CreateUserDto {
-  @ApiProperty({ example: 'André Câmara' })
+  @ApiProperty({
+    example: 'André Câmara',
+    minLength: userFieldLimits.name.minLength,
+    maxLength: userFieldLimits.name.maxLength,
+  })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
-  @Length(1, 120)
+  @Length(userFieldLimits.name.minLength, userFieldLimits.name.maxLength)
   name!: string;
 
-  @ApiProperty({ example: 'andre.camara' })
+  @ApiProperty({
+    example: 'andre.camara',
+    minLength: userFieldLimits.username.minLength,
+    maxLength: userFieldLimits.username.maxLength,
+  })
   @Transform(({ value }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   @IsString()
-  @Length(1, 60)
-  @Matches(/^[a-z0-9._-]+$/, {
-    message:
-      'username deve conter apenas letras sem acento, números, ponto, hífen ou sublinhado',
+  @Length(
+    userFieldLimits.username.minLength,
+    userFieldLimits.username.maxLength,
+  )
+  @Matches(usernameAllowedCharactersPattern, {
+    message: userValidationMessages.invalidUsernameCharacters,
   })
   username!: string;
 
   @ApiProperty({
     example: 'MinhaSenhaDeTeste123!',
-    minLength: 12,
-    maxLength: 128,
+    minLength: userFieldLimits.password.minLength,
+    maxLength: userFieldLimits.password.maxLength,
     writeOnly: true,
   })
   @IsString()
-  @Length(12, 128)
+  @Length(
+    userFieldLimits.password.minLength,
+    userFieldLimits.password.maxLength,
+  )
   password!: string;
 }

@@ -50,7 +50,7 @@ describe('App (e2e)', () => {
   describe('/v1/users', () => {
     it('creates a user', async () => {
       const response = await request(app.getHttpServer())
-        .post('/v1/users')
+        .post('/v1/users/register')
         .send(validUserPayload)
         .expect(201);
 
@@ -67,12 +67,12 @@ describe('App (e2e)', () => {
 
     it('returns conflict for a duplicated username', async () => {
       await request(app.getHttpServer())
-        .post('/v1/users')
+        .post('/v1/users/register')
         .send(validUserPayload)
         .expect(201);
 
       const response = await request(app.getHttpServer())
-        .post('/v1/users')
+        .post('/v1/users/register')
         .send({
           ...validUserPayload,
           username: ' ANDRE.CAMARA ',
@@ -92,14 +92,14 @@ describe('App (e2e)', () => {
       ],
     ])('rejects %s', async (_scenario, payload) => {
       await request(app.getHttpServer())
-        .post('/v1/users')
+        .post('/v1/users/register')
         .send(payload)
         .expect(400);
     });
 
     it('finds a user by normalized username', async () => {
       await request(app.getHttpServer())
-        .post('/v1/users')
+        .post('/v1/users/register')
         .send(validUserPayload)
         .expect(201);
 
@@ -120,6 +120,117 @@ describe('App (e2e)', () => {
         .expect(404);
 
       expect(response.body.message).toBe('Usuário não encontrado.');
+    });
+
+    it('deletes a user by id', async () => {
+      const createdUserResponse = await request(app.getHttpServer())
+        .post('/v1/users/register')
+        .send(validUserPayload)
+        .expect(201);
+
+      const deleteResponse = await request(app.getHttpServer())
+        .delete(`/v1/users/${createdUserResponse.body.id}`)
+        .expect(204);
+
+      expect(deleteResponse.text).toBe('');
+
+      await request(app.getHttpServer())
+        .get('/v1/users/andre.camara')
+        .expect(404);
+    });
+
+    it('returns bad request for an invalid user id', async () => {
+      await request(app.getHttpServer())
+        .delete('/v1/users/not-a-uuid')
+        .expect(400);
+    });
+
+    it('returns not found when deleting an unknown user', async () => {
+      const response = await request(app.getHttpServer())
+        .delete('/v1/users/00000000-0000-4000-8000-000000000000')
+        .expect(404);
+
+      expect(response.body.message).toBe('Usuário não encontrado.');
+    });
+  });
+
+  describe('/v1/auth/login', () => {
+    it('returns an access token for valid normalized credentials', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/users/register')
+        .send(validUserPayload)
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({
+          username: ' ANDRE.CAMARA ',
+          password: validUserPayload.password,
+        })
+        .expect(200);
+
+      expect(response.body).toEqual({
+        accessToken: expect.any(String),
+      });
+    });
+
+    it('returns unauthorized for an invalid password', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/users/register')
+        .send(validUserPayload)
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({
+          username: 'andre.camara',
+          password: 'SenhaIncorreta123!',
+        })
+        .expect(401);
+
+      expect(response.body.message).toBe('Nome de usuário ou senha inválidos.');
+    });
+
+    it('returns the same unauthorized response for an unknown user', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({
+          username: 'missing.user',
+          password: validUserPayload.password,
+        })
+        .expect(401);
+
+      expect(response.body.message).toBe('Nome de usuário ou senha inválidos.');
+    });
+
+    it.each([
+      [
+        'an extra property',
+        {
+          username: 'andre.camara',
+          password: validUserPayload.password,
+          role: 'OWNER',
+        },
+      ],
+      [
+        'an invalid username',
+        {
+          username: 'usuário com espaços',
+          password: validUserPayload.password,
+        },
+      ],
+      [
+        'a short password',
+        {
+          username: 'andre.camara',
+          password: '123',
+        },
+      ],
+    ])('rejects %s', async (_scenario, payload) => {
+      await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send(payload)
+        .expect(400);
     });
   });
 });

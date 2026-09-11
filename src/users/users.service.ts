@@ -30,7 +30,7 @@ export class UsersService {
     private readonly usersRepository: Repository<User>,
   ) {}
 
-  async findByUsername(username: string): Promise<User | null> {
+  async findUserEntityByUsername(username: string): Promise<User | null> {
     const normalizedUsername = username.trim().toLowerCase();
 
     return this.usersRepository.findOneBy({
@@ -38,8 +38,8 @@ export class UsersService {
     });
   }
 
-  async getByUsername(username: string): Promise<UserResponseDto> {
-    const user = await this.findByUsername(username);
+  async getPublicUserByUsername(username: string): Promise<UserResponseDto> {
+    const user = await this.findUserEntityByUsername(username);
 
     if (!user) {
       throw new NotFoundException(userErrorMessages.userNotFound);
@@ -77,6 +77,14 @@ export class UsersService {
       }
 
       throw error;
+    }
+  }
+
+  async deleteUserById(userId: string): Promise<void> {
+    const deleteResult = await this.usersRepository.delete(userId);
+
+    if (deleteResult.affected === 0) {
+      throw new NotFoundException(userErrorMessages.userNotFound);
     }
   }
 }

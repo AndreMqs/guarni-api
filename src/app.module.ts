@@ -4,6 +4,7 @@ import Joi from 'joi';
 import { HealthModule } from './health/health.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { UsersModule } from './users/users.module.js';
+import { AuthModule } from './auth/auth.module.js';
 
 @Module({
   imports: [
@@ -20,11 +21,14 @@ import { UsersModule } from './users/users.module.js';
         DATABASE_URL: Joi.string()
           .uri({ scheme: ['postgresql'] })
           .required(),
+        JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+        JWT_ACCESS_TTL_SECONDS: Joi.number().integer().positive().required(),
       }),
     }),
     HealthModule,
     DatabaseModule,
     UsersModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

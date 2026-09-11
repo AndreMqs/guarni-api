@@ -10,6 +10,7 @@ type UsersRepositoryMock = {
   findOneBy: ReturnType<typeof vi.fn>;
   create: ReturnType<typeof vi.fn>;
   save: ReturnType<typeof vi.fn>;
+  delete: ReturnType<typeof vi.fn>;
 };
 
 vi.mock('argon2', () => ({
@@ -32,6 +33,7 @@ describe('UsersService', () => {
             findOneBy: vi.fn(),
             create: vi.fn(),
             save: vi.fn(),
+            delete: vi.fn(),
           },
         },
       ],
@@ -41,7 +43,7 @@ describe('UsersService', () => {
     usersRepository = testingModule.get(getRepositoryToken(User));
   });
 
-  describe('findByUsername', () => {
+  describe('findUserEntityByUsername', () => {
     it('normalizes the username before searching', async () => {
       const existingUser = {
         username: 'andre.camara',
@@ -49,7 +51,8 @@ describe('UsersService', () => {
 
       usersRepository.findOneBy.mockResolvedValue(existingUser);
 
-      const foundUser = await usersService.findByUsername(' Andre.Camara ');
+      const foundUser =
+        await usersService.findUserEntityByUsername(' Andre.Camara ');
 
       expect(usersRepository.findOneBy).toHaveBeenCalledWith({
         username: 'andre.camara',
@@ -58,7 +61,7 @@ describe('UsersService', () => {
     });
   });
 
-  describe('getByUsername', () => {
+  describe('getPublicUserByUsername', () => {
     it('returns the public user without the password hash', async () => {
       const createdAt = new Date();
       const updatedAt = new Date();
@@ -74,7 +77,8 @@ describe('UsersService', () => {
 
       usersRepository.findOneBy.mockResolvedValue(existingUser);
 
-      const userResponse = await usersService.getByUsername('andre.camara');
+      const userResponse =
+        await usersService.getPublicUserByUsername('andre.camara');
 
       expect(userResponse).toEqual({
         id: 'user-id',
@@ -90,7 +94,7 @@ describe('UsersService', () => {
       usersRepository.findOneBy.mockResolvedValue(null);
 
       await expect(
-        usersService.getByUsername('missing.user'),
+        usersService.getPublicUserByUsername('missing.user'),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -199,6 +203,32 @@ describe('UsersService', () => {
       await expect(usersService.create(createUserDto)).rejects.toBe(
         unrelatedDatabaseError,
       );
+    });
+  });
+
+  describe('deleteUserById', () => {
+    it('deletes the user by id', async () => {
+      usersRepository.delete.mockResolvedValue({
+        raw: [],
+        affected: 1,
+      });
+
+      await expect(
+        usersService.deleteUserById('user-id'),
+      ).resolves.toBeUndefined();
+
+      expect(usersRepository.delete).toHaveBeenCalledWith('user-id');
+    });
+
+    it('throws NotFoundException when the user does not exist', async () => {
+      usersRepository.delete.mockResolvedValue({
+        raw: [],
+        affected: 0,
+      });
+
+      await expect(
+        usersService.deleteUserById('missing-user-id'),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });

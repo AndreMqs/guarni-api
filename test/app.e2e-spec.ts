@@ -32,7 +32,7 @@ describe('App (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await usersRepository.clear();
+    await usersRepository.deleteAll();
   });
 
   afterAll(async () => {

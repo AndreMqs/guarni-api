@@ -23,6 +23,7 @@ export function setupApp(
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Guarni API')
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, swaggerDocument);

@@ -233,4 +233,52 @@ describe('App (e2e)', () => {
         .expect(400);
     });
   });
+
+  describe('/v1/auth/me', () => {
+    it('returns the authenticated user for a valid access token', async () => {
+      const createdUserResponse = await request(app.getHttpServer())
+        .post('/v1/users/register')
+        .send(validUserPayload)
+        .expect(201);
+
+      const loginResponse = await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({
+          username: validUserPayload.username,
+          password: validUserPayload.password,
+        })
+        .expect(200);
+
+      const response = await request(app.getHttpServer())
+        .get('/v1/auth/me')
+        .set('Authorization', `Bearer ${loginResponse.body.accessToken}`)
+        .expect(200);
+
+      expect(response.body).toEqual({
+        id: createdUserResponse.body.id,
+        username: 'andre.camara',
+      });
+    });
+
+    it('returns unauthorized without an access token', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/v1/auth/me')
+        .expect(401);
+
+      expect(response.body.message).toBe(
+        'Token de acesso inválido ou expirado.',
+      );
+    });
+
+    it('returns unauthorized for an invalid access token', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/v1/auth/me')
+        .set('Authorization', 'Bearer invalid-access-token')
+        .expect(401);
+
+      expect(response.body.message).toBe(
+        'Token de acesso inválido ou expirado.',
+      );
+    });
+  });
 });

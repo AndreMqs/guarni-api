@@ -26,8 +26,7 @@ import { UsersModule } from './users/users.module.js';
         DATABASE_URL: Joi.string().uri({ scheme: ['postgresql'] }).required(),
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
         JWT_ACCESS_TTL_SECONDS: Joi.number().integer().positive().required(),
-        // SETUP_OWNER_TOKEN será tornado obrigatório quando o checkpoint de setup for implementado.
-        SETUP_OWNER_TOKEN: Joi.string().min(32).optional(),
+        SETUP_OWNER_TOKEN: Joi.string().min(32).required(),
       }),
     }),
     HealthModule,

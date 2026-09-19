@@ -3,12 +3,13 @@ import type { INestApplication } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { DataSource, type Repository } from 'typeorm';
 import request from 'supertest';
-import type { App } from 'supertest/types';
+import type { App } from 'supertest/types.js';
 import { setupApp } from './../src/app.setup.js';
 import { AppModule } from './../src/app.module.js';
 import { User } from './../src/users/entities/user.entity.js';
 import { Unit } from './../src/units/entities/unit.entity.js';
 import { Membership } from './../src/memberships/entities/membership.entity.js';
+import { UsersService } from './../src/users/users.service.js';
 
 const validUserPayload = {
   name: ' André Câmara ',
@@ -32,6 +33,10 @@ describe('App (e2e)', () => {
     await app.init();
 
     const dataSource = app.get(DataSource);
+    const [{ name }] = await dataSource.query(
+      'SELECT current_database() AS name',
+    );
+    if (name !== 'guarni_test') throw new Error('E2E requires guarni_test');
     usersRepository = dataSource.getRepository(User);
     unitsRepository = dataSource.getRepository(Unit);
     membershipsRepository = dataSource.getRepository(Membership);
@@ -59,7 +64,7 @@ describe('App (e2e)', () => {
   };
 
   afterAll(async () => {
-    await app.close();
+    if (app) await app.close();
   });
 
   it('/v1/health (GET)', async () => {
@@ -70,119 +75,25 @@ describe('App (e2e)', () => {
     expect(response.body.status).toBe('ok');
   });
 
-  describe('/v1/users', () => {
-    it('creates a user', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/v1/users/register')
-        .send(validUserPayload)
-        .expect(201);
-
-      expect(response.body).toMatchObject({
-        id: expect.any(String),
-        name: 'André Câmara',
-        username: 'andre.camara',
-        createdAt: expect.any(String),
-        updatedAt: expect.any(String),
-      });
-      expect(response.body).not.toHaveProperty('password');
-      expect(response.body).not.toHaveProperty('passwordHash');
-    });
-
-    it('returns conflict for a duplicated username', async () => {
+  describe('removed public user routes', () => {
+    it('does not expose registration, lookup or physical deletion', async () => {
       await request(app.getHttpServer())
         .post('/v1/users/register')
         .send(validUserPayload)
-        .expect(201);
-
-      const response = await request(app.getHttpServer())
-        .post('/v1/users/register')
-        .send({
-          ...validUserPayload,
-          username: ' ANDRE.CAMARA ',
-        })
-        .expect(409);
-
-      expect(response.body.message).toBe('Nome de usuário já está em uso.');
-    });
-
-    it.each([
-      ['an extra property', { ...validUserPayload, role: 'OWNER' }],
-      ['a short password', { ...validUserPayload, password: '123' }],
-      ['a blank name', { ...validUserPayload, name: '   ' }],
-      [
-        'an invalid username',
-        { ...validUserPayload, username: 'Usuário com espaços' },
-      ],
-    ])('rejects %s', async (_scenario, payload) => {
-      await request(app.getHttpServer())
-        .post('/v1/users/register')
-        .send(payload)
-        .expect(400);
-    });
-
-    it('finds a user by normalized username', async () => {
-      await request(app.getHttpServer())
-        .post('/v1/users/register')
-        .send(validUserPayload)
-        .expect(201);
-
-      const response = await request(app.getHttpServer())
-        .get('/v1/users/ANDRE.CAMARA')
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        name: 'André Câmara',
-        username: 'andre.camara',
-      });
-      expect(response.body).not.toHaveProperty('passwordHash');
-    });
-
-    it('returns not found for an unknown username', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/v1/users/missing.user')
         .expect(404);
-
-      expect(response.body.message).toBe('Usuário não encontrado.');
-    });
-
-    it('deletes a user by id', async () => {
-      const createdUserResponse = await request(app.getHttpServer())
-        .post('/v1/users/register')
-        .send(validUserPayload)
-        .expect(201);
-
-      const deleteResponse = await request(app.getHttpServer())
-        .delete(`/v1/users/${createdUserResponse.body.id}`)
-        .expect(204);
-
-      expect(deleteResponse.text).toBe('');
-
       await request(app.getHttpServer())
         .get('/v1/users/andre.camara')
         .expect(404);
-    });
-
-    it('returns bad request for an invalid user id', async () => {
       await request(app.getHttpServer())
-        .delete('/v1/users/not-a-uuid')
-        .expect(400);
-    });
-
-    it('returns not found when deleting an unknown user', async () => {
-      const response = await request(app.getHttpServer())
         .delete('/v1/users/00000000-0000-4000-8000-000000000000')
         .expect(404);
-
-      expect(response.body.message).toBe('Usuário não encontrado.');
     });
   });
-
   describe('/v1/auth/login', () => {
     it('returns an access token for valid normalized credentials', async () => {
-      const createdUserResponse = await request(app.getHttpServer())
-        .post('/v1/users/register')
-        .send(validUserPayload)
-        .expect(201);
+      const createdUserResponse = {
+        body: await app.get(UsersService).create(validUserPayload),
+      };
 
       await createActiveMembershipForUser(createdUserResponse.body.id);
 
@@ -200,10 +111,7 @@ describe('App (e2e)', () => {
     });
 
     it('returns unauthorized for an invalid password', async () => {
-      await request(app.getHttpServer())
-        .post('/v1/users/register')
-        .send(validUserPayload)
-        .expect(201);
+      await app.get(UsersService).create(validUserPayload);
 
       const response = await request(app.getHttpServer())
         .post('/v1/auth/login')
@@ -261,10 +169,9 @@ describe('App (e2e)', () => {
 
   describe('/v1/auth/me', () => {
     it('returns the authenticated user for a valid access token', async () => {
-      const createdUserResponse = await request(app.getHttpServer())
-        .post('/v1/users/register')
-        .send(validUserPayload)
-        .expect(201);
+      const createdUserResponse = {
+        body: await app.get(UsersService).create(validUserPayload),
+      };
 
       const unit = await createActiveMembershipForUser(
         createdUserResponse.body.id,

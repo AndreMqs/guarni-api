@@ -6,7 +6,9 @@ export default defineConfig({
   test: {
     globals: true,
     root: './',
-    include: ['**/*.e2e-spec.ts'],
+    include: ['test/**/*.e2e-spec.ts'],
+    // Suites share guarni_test; only requests within a concurrency test overlap.
+    fileParallelism: false,
     setupFiles: ['./test/setup-env.ts'],
   },
 });

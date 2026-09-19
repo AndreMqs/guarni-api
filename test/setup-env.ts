@@ -6,3 +6,5 @@ process.env.DATABASE_URL =
 process.env.JWT_ACCESS_SECRET =
   'test-access-secret-with-at-least-32-characters';
 process.env.JWT_ACCESS_TTL_SECONDS = '900';
+process.env.SETUP_OWNER_TOKEN =
+  'test-setup-owner-token-with-at-least-32-characters';

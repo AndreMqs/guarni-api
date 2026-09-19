@@ -46,6 +46,17 @@ $ npm run start:prod
 
 ## Run tests
 
+Os E2E usam o PostgreSQL local e o banco exclusivo `guarni_test`, configurado
+em `test/setup-env.ts`. Esse banco precisa existir e ter todas as migrations
+aplicadas, incluindo `PrepareMvpDomain1790000000000`. As suites limpam os dados
+de usuários, unidades e memberships; não use esse banco para dados pessoais.
+As suites executam em sequência porque compartilham o banco.
+
+`src/setup/setup.service.spec.ts` cobre a validação do segredo sem banco.
+`test/setup.e2e-spec.ts` cobre o contrato HTTP, persistência, rollback e
+concorrência com PostgreSQL real. O teste de concorrência aguarda duas
+requisições disputarem o advisory lock antes de liberá-lo.
+
 ```bash
 # unit tests
 $ npm run test

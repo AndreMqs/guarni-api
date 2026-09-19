@@ -1,4 +1,6 @@
 export const setupErrorMessages = {
-  notImplemented:
-    'Bootstrap ainda não implementado: este é um checkpoint de aprendizado sobre transações e concorrência.',
+  alreadyCompleted: 'SETUP_ALREADY_COMPLETED',
+  unauthorized: 'INVALID_SETUP_TOKEN',
 } as const;
+
+export const SETUP_LOCK_KEY = 1001;

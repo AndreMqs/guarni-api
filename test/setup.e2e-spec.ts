@@ -12,6 +12,8 @@ import { Unit } from '../src/units/entities/unit.entity.js';
 import { Membership } from '../src/memberships/entities/membership.entity.js';
 import { SETUP_LOCK_KEY } from '../src/setup/setup.constants.js';
 import type { SetupOwnerDto } from '../src/setup/dto/setup-owner.dto.js';
+import { resetOwnerPassword } from '../src/admin/reset-owner-password.js';
+import { listUsers } from '../src/admin/list-users.js';
 
 describe('POST /v1/setup/owner (PostgreSQL)', () => {
   let app: INestApplication<App>;
@@ -56,6 +58,126 @@ describe('POST /v1/setup/owner (PostgreSQL)', () => {
   afterEach(clean);
   afterAll(async () => {
     if (app) await app.close();
+  });
+
+  it('lists public identification and all memberships without exposing credentials', async () => {
+    expect(await listUsers(db)).toEqual([]);
+    const { body } = await setup().expect(201);
+    const otherUnit = await db.manager.save(
+      db.manager.create(Unit, { name: 'Other unit' }),
+    );
+    await db.manager.save(
+      db.manager.create(Membership, {
+        userId: body.user.id,
+        unitId: otherUnit.id,
+        role: 'MANAGER',
+        isActive: false,
+      }),
+    );
+    const unlinked = await db.manager.save(
+      db.manager.create(User, {
+        name: 'Unlinked User',
+        username: 'unlinked.user',
+        passwordHash: 'must-not-be-returned',
+      }),
+    );
+    expect(await listUsers(db)).toEqual([
+      {
+        id: body.user.id,
+        name: 'Owner Test',
+        username: 'owner.test',
+        canResetOwnerPassword: true,
+        memberships: [
+          {
+            unitId: body.unit.id,
+            unitName: 'Guarni Test',
+            role: 'OWNER',
+            isActive: true,
+          },
+          {
+            unitId: otherUnit.id,
+            unitName: 'Other unit',
+            role: 'MANAGER',
+            isActive: false,
+          },
+        ],
+      },
+      {
+        id: unlinked.id,
+        name: 'Unlinked User',
+        username: 'unlinked.user',
+        canResetOwnerPassword: false,
+        memberships: [],
+      },
+    ]);
+    await db.manager.update(
+      Membership,
+      { id: body.membership.id },
+      { isActive: false },
+    );
+    expect((await listUsers(db))[0].canResetOwnerPassword).toBe(false);
+  });
+
+  it('recovers an owner password without changing the user identity or memberships', async () => {
+    const { body } = await setup().expect(201);
+    const membershipBefore = await db.manager.findOneByOrFail(Membership, {
+      id: body.membership.id,
+    });
+    const unitBefore = await db.manager.findOneByOrFail(Unit, {
+      id: body.unit.id,
+    });
+    const recovered = await resetOwnerPassword(db, body.user.id);
+    expect(recovered.username).toBe('owner.test');
+    expect(recovered.password).toHaveLength(32);
+    expect(recovered.password).not.toBe(dto.password);
+    const stored = await db.manager.findOneByOrFail(User, { id: body.user.id });
+    expect(stored.passwordHash).toMatch(/^\$argon2id\$/);
+    expect(await argon2.verify(stored.passwordHash, recovered.password)).toBe(
+      true,
+    );
+    await request(app.getHttpServer())
+      .post('/v1/auth/login')
+      .send({ username: recovered.username, password: dto.password })
+      .expect(401);
+    await request(app.getHttpServer())
+      .post('/v1/auth/login')
+      .send({ username: recovered.username, password: recovered.password })
+      .expect(200);
+    expect(
+      await db.manager.findOneByOrFail(Membership, { id: membershipBefore.id }),
+    ).toEqual(membershipBefore);
+    expect(
+      await db.manager.findOneByOrFail(Unit, { id: unitBefore.id }),
+    ).toEqual(unitBefore);
+    expect(await counts()).toEqual([1, 1, 1]);
+  });
+
+  it.each([
+    { role: 'EMPLOYEE' as const, isActive: true },
+    { role: 'MANAGER' as const, isActive: true },
+    { role: 'OWNER' as const, isActive: false },
+  ])(
+    'does not reset an account without an active OWNER membership: %j',
+    async (values) => {
+      const { body } = await setup().expect(201);
+      await db.manager.update(Membership, { id: body.membership.id }, values);
+      const before = await db.manager.findOneByOrFail(User, {
+        id: body.user.id,
+      });
+      await expect(resetOwnerPassword(db, before.id)).rejects.toThrow(
+        'O usuário não possui vínculo OWNER ativo.',
+      );
+      expect(await db.manager.findOneByOrFail(User, { id: before.id })).toEqual(
+        before,
+      );
+    },
+  );
+
+  it('does not create an account during recovery of an unknown user', async () => {
+    await expect(
+      resetOwnerPassword(db, '00000000-0000-4000-8000-000000000000'),
+    ).rejects.toThrow('Usuário não encontrado.');
+    expect(await counts()).toEqual([0, 0, 0]);
   });
 
   it.each([undefined, 'wrong-token'])(

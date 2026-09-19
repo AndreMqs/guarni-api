@@ -46,6 +46,52 @@ $ npm run start:prod
 
 ## Run tests
 
+### Recuperação manual do OWNER
+
+Se o proprietário esqueceu o username, consulte os cadastros primeiro:
+
+```powershell
+npm run admin:list-users
+```
+
+A listagem mostra ID, nome, username, unidades, papel e situação dos vínculos.
+Inclui usuários sem vínculo e vínculos inativos. A coluna `Reset OWNER` indica
+quem possui pelo menos um vínculo OWNER ativo e pode usar o comando abaixo.
+Não consulta nem exibe senhas ou hashes. É uma consulta administrativa via
+terminal, usando `DATABASE_URL` do ambiente ou do `.env`, sem rota pública.
+Com o build pronto, use `node dist/admin/list-users.cli.js` no ambiente do banco.
+
+Com o PostgreSQL acessível e `DATABASE_URL` configurada, execute em um terminal:
+
+```powershell
+npm run owner:reset-password -- username.do.owner
+```
+
+O comando compila o projeto, carrega o `.env` se existir e mostra o banco,
+servidor e usuário selecionados. Confira esses dados e digite
+`RESET username.do.owner` para confirmar. Qualquer outro texto cancela.
+Ele exige um vínculo OWNER ativo, gera uma senha aleatória e salva apenas seu
+hash Argon2id. A nova senha aparece no terminal depois do commit; guarde-a e
+entregue-a ao proprietário após verificar sua identidade. Não grave essa saída
+em logs nem use o comando no start/deploy automático da aplicação.
+
+Esse comando é uma operação administrativa para quem tem acesso ao banco.
+Não depende da senha antiga nem do token de setup, não cria usuários e não
+reativa memberships. Como a senha pertence ao User, muda o login em todas as
+unidades desse usuário. Se perder a nova senha, execute a recuperação novamente.
+
+**Limitação atual:** tokens JWT emitidos antes do reset continuam válidos até
+expirar. O incremento de `credentialVersion` e sua verificação no guard serão
+implementados manualmente no checkpoint 2. A senha gerada não expira e ainda
+não há troca obrigatória no próximo login.
+
+Em um ambiente com o build pronto e `DATABASE_URL` já definida, também é possível
+executar `node dist/admin/reset-owner-password.cli.js username.do.owner` em um
+terminal interativo com acesso ao banco. Não é necessário publicar uma API de
+recuperação. Use Node 24, como no ambiente de desenvolvimento.
+
+### Execução das suites
+
 Os E2E usam o PostgreSQL local e o banco exclusivo `guarni_test`, configurado
 em `test/setup-env.ts`. Esse banco precisa existir e ter todas as migrations
 aplicadas, incluindo `PrepareMvpDomain1790000000000`. As suites limpam os dados

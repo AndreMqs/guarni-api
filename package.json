@@ -8,6 +8,10 @@
   "type": "module",
   "scripts": {
     "build": "nest build",
+    "preowner:reset-password": "npm run build",
+    "owner:reset-password": "node --env-file-if-exists=.env dist/admin/reset-owner-password.cli.js",
+    "preadmin:list-users": "npm run build",
+    "admin:list-users": "node --env-file-if-exists=.env dist/admin/list-users.cli.js",
     "deploy": "nest deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

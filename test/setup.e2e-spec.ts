@@ -61,6 +61,94 @@ describe('POST /v1/setup/owner (PostgreSQL)', () => {
     if (app) await app.close();
   });
 
+  describe('unit membership authorization', () => {
+    let unitId: string;
+    let membershipId: string;
+    let accessToken: string;
+
+    beforeEach(async () => {
+      const { body } = await setup().expect(201);
+      unitId = body.unit.id;
+      membershipId = body.membership.id;
+      const login = await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({ username: dto.username, password: dto.password })
+        .expect(200);
+      accessToken = login.body.accessToken;
+    });
+
+    const settings = (id: string) =>
+      request(app.getHttpServer())
+        .get(`/v1/units/${id}/settings`)
+        .set('Authorization', `Bearer ${accessToken}`);
+
+    it.each(['OWNER', 'MANAGER', 'EMPLOYEE'] as const)(
+      'allows an active %s to read only the validated unit settings',
+      async (role) => {
+        await db.manager.update(Membership, { id: membershipId }, { role });
+        const { body } = await settings(unitId).expect(200);
+        expect(body).toEqual({
+          id: unitId,
+          name: 'Guarni Test',
+          timezone: 'America/Sao_Paulo',
+          closingTime: '03:00:00',
+          version: 1,
+        });
+      },
+    );
+
+    it('requires authentication', async () => {
+      await request(app.getHttpServer())
+        .get(`/v1/units/${unitId}/settings`)
+        .expect(401);
+    });
+
+    it('rejects a malformed unit UUID before querying PostgreSQL', async () => {
+      const { body } = await settings('not-a-uuid').expect(400);
+      expect(body.message).toBe('unitId deve ser um UUID válido.');
+    });
+
+    it('rejects another unit and a nonexistent unit with the same response', async () => {
+      const other = await db.manager.save(
+        db.manager.create(Unit, { name: 'Other tenant' }),
+      );
+      const denied = await settings(other.id).expect(403);
+      const absent = await settings(
+        '00000000-0000-4000-8000-000000000000',
+      ).expect(403);
+      expect(denied.body.message).toBe('Sem acesso a esta unidade.');
+      expect(absent.body).toEqual(denied.body);
+    });
+
+    it('does not authorize using another users membership or a supplied userId', async () => {
+      const other = await db.manager.save(
+        db.manager.create(User, {
+          name: 'Other user',
+          username: 'other.user',
+          passwordHash: 'unused-in-this-test',
+        }),
+      );
+      await db.manager.update(
+        Membership,
+        { id: membershipId },
+        { userId: other.id },
+      );
+      await settings(unitId)
+        .query({ userId: other.id, sub: other.id })
+        .expect(403);
+    });
+
+    it('rejects an inactive membership even with an already issued token', async () => {
+      await db.manager.update(
+        Membership,
+        { id: membershipId },
+        { isActive: false },
+      );
+      const { body } = await settings(unitId).expect(403);
+      expect(body.message).toBe('Sem acesso a esta unidade.');
+    });
+  });
+
   it('lists public identification and all memberships without exposing credentials', async () => {
     expect(await listUsers(db)).toEqual([]);
     const { body } = await setup().expect(201);

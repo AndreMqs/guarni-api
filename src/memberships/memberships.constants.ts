@@ -12,3 +12,8 @@ export const membershipRoles = {
 
 export type MembershipRole =
   (typeof membershipRoles)[keyof typeof membershipRoles];
+
+export const unitMembershipErrorMessages = {
+  invalidUuid: 'unitId deve ser um UUID válido.',
+  accessDenied: 'Sem acesso a esta unidade.',
+};

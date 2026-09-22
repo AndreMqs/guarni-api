@@ -12,6 +12,6 @@ import { MembershipsService } from './memberships.service.js';
   imports: [TypeOrmModule.forFeature([Membership, User, Unit]), AuthModule],
   controllers: [MembershipsController],
   providers: [MembershipsService, UnitMembershipGuard],
-  exports: [MembershipsService, UnitMembershipGuard],
+  exports: [MembershipsService, UnitMembershipGuard, TypeOrmModule],
 })
 export class MembershipsModule {}

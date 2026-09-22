@@ -11,3 +11,7 @@ export const unitDefaults = {
   timezone: 'America/Sao_Paulo',
   closingTime: '03:00',
 } as const;
+
+export const unitsErrorMessages = {
+  unityNotFound: 'Unidade não encontrada.',
+};

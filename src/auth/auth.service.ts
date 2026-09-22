@@ -1,13 +1,11 @@
 import {
   Injectable,
   NotFoundException,
-  NotImplementedException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
-import type { Repository } from 'typeorm';
 import { Membership } from '../memberships/entities/membership.entity.js';
 import { UsersService } from '../users/users.service.js';
 import { authErrorMessages } from './auth.constants.js';
@@ -15,12 +13,15 @@ import type { ChangePasswordDto } from './dto/change-password.dto.js';
 import type { CurrentUserResponseDto } from './dto/current-user-response.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { LoginResponseDto } from './dto/login-response.dto.js';
+import { DataSource, type Repository } from 'typeorm';
+import { User } from '../users/entities/user.entity.js';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly dataSource: DataSource,
     @InjectRepository(Membership)
     private readonly membershipsRepository: Repository<Membership>,
   ) {}
@@ -65,7 +66,7 @@ export class AuthService {
     const user = await this.usersService.findUserEntityById(userId);
 
     if (!user) {
-      throw new NotFoundException('Usuário não encontrado.');
+      throw new NotFoundException(authErrorMessages.userNotFound);
     }
 
     const memberships = await this.membershipsRepository.find({
@@ -91,12 +92,51 @@ export class AuthService {
     };
   }
 
-  changePassword(_userId: string, _dto: ChangePasswordDto): never {
-    // LEARNING CHECKPOINT:
-    // Você vai implementar a troca de senha + incremento de credentialVersion
-    // e emissão do novo token depois de estudar invalidação de credenciais.
-    throw new NotImplementedException(
-      'Troca de senha com invalidação de tokens ainda não foi implementada.',
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<LoginResponseDto> {
+    const user = await this.usersService.findUserEntityById(userId);
+    if (!user) {
+      throw new UnauthorizedException(authErrorMessages.invalidCredentials);
+    }
+
+    const passwordMatches = await argon2.verify(
+      user.passwordHash,
+      dto.currentPassword,
     );
+    if (!passwordMatches) {
+      throw new UnauthorizedException(authErrorMessages.invalidCredentials);
+    }
+
+    const newPasswordHash = await argon2.hash(dto.newPassword);
+    const nextCredentialVersion = user.credentialVersion + 1;
+    return this.dataSource.transaction(async (manager) => {
+      const result = await manager.update(
+        User,
+        {
+          id: user.id,
+          credentialVersion: user.credentialVersion,
+        },
+        {
+          passwordHash: newPasswordHash,
+          credentialVersion: nextCredentialVersion,
+        },
+      );
+
+      if (result.affected !== 1) {
+        throw new UnauthorizedException(
+          authErrorMessages.invalidOrExpiredAccessToken,
+        );
+      }
+
+      const accessToken = await this.jwtService.signAsync({
+        sub: user.id,
+        username: user.username,
+        credentialVersion: nextCredentialVersion,
+      });
+
+      return { accessToken };
+    });
   }
 }

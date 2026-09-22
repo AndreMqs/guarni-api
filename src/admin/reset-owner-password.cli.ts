@@ -50,7 +50,7 @@ async function main() {
       `Usuário: ${user.username} | Nome: ${user.name} | ID: ${user.id}`,
     );
     console.log(
-      'A senha atual será substituída. Tokens antigos continuam válidos até expirar (checkpoint 2 pendente).',
+      'A senha atual será substituída e os tokens anteriores serão invalidados.',
     );
     const terminal = createInterface({ input: stdin, output: stdout });
     let answer: string;

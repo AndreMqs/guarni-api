@@ -411,12 +411,12 @@ Depois que uma agregação for feita manualmente, o Codex pode implementar as de
 
 # Como o Codex deve conduzir cada checkpoint
 
-Ao abrir este projeto pela primeira vez, o Codex deve primeiro:
+Ao abrir ou retomar este projeto, o Codex deve primeiro:
 
 1. conferir o diff/estado do repositório;
-2. rodar `npm ci`;
-3. rodar `npm run build`, `npm test` e `npm run test:e2e`;
-4. conferir `npm run migration:show`;
+2. ler o código relevante e identificar o ponto atual do aprendizado;
+3. fazer uma revisão simples por leitura dos arquivos e do diff;
+4. deixar instalação de dependências e verificações executáveis para quando forem necessárias para testar ou rodar um fluxo pronto;
 5. **não** implementar automaticamente nenhum checkpoint novo só porque encontrou um `501`.
 
 Para cada item novo:
@@ -425,12 +425,21 @@ Para cada item novo:
 2. apontar os arquivos exatos envolvidos;
 3. mostrar a forma/assinatura da solução, sem entregar a implementação inteira de imediato;
 4. pedir ao usuário para escrever a parte central;
-5. revisar o código enviado;
-6. executar testes;
-7. explicar eventuais erros;
+5. revisar o código enviado por leitura, conferindo imports, assinaturas, tipos aparentes, lógica e ordem das operações;
+6. explicar os problemas encontrados e orientar o próximo passo pequeno, sem executar build ou testes a cada edição;
+7. quando houver uma funcionalidade ou etapa completa pronta para testar, rodar de verdade ou preparar para commit, executar as verificações adequadas e explicar eventuais erros;
 8. somente depois automatizar as repetições do mesmo padrão.
 
 Evitar transformar cada aula em refatoração arquitetural. Usar NestJS e TypeORM de forma direta e consistente com o projeto atual.
+
+## Momento das verificações
+
+- Durante a escrita e os passos intermediários, a revisão padrão é simples: ler os arquivos alterados e o diff. Não executar automaticamente build, typecheck, lint, testes unitários, E2E ou consultas ao banco a cada "feito" ou "próximo".
+- Reservar build e verificações mais pesadas para uma etapa funcional pronta para teste/execução ou para preparação de commit. Executar apenas as verificações pertinentes às mudanças; não repetir suites sem alterações ou dúvidas que justifiquem a repetição.
+- Comandos auxiliares também contam: `npm run migration:show`, por exemplo, dispara build neste projeto e não deve ser usado como revisão leve.
+- Não executar `npm ci` automaticamente ao retomar a conversa; instalar dependências quando necessário para a execução planejada.
+- Se o usuário pedir explicitamente um teste, build ou investigação de erro em execução, fazer a verificação solicitada naquele momento.
+- Distinguir revisão de código de validação executada: não afirmar que compilou ou passou em testes quando houve apenas leitura.
 
 # Importante sobre os stubs 501
 

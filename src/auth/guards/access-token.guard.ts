@@ -8,10 +8,14 @@ import { JwtService } from '@nestjs/jwt';
 import type { AuthenticatedRequest } from '../types/authenticated-request.type.js';
 import { authErrorMessages } from '../auth.constants.js';
 import type { AccessTokenPayload } from '../types/access-token-payload.type.js';
+import { UsersService } from '../../users/users.service.js';
 
 @Injectable()
 export class AccessTokenGuard implements CanActivate {
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly usersService: UsersService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
@@ -24,8 +28,10 @@ export class AccessTokenGuard implements CanActivate {
       );
     }
 
+    let payload: AccessTokenPayload;
+
     try {
-      request.user =
+      payload =
         await this.jwtService.verifyAsync<AccessTokenPayload>(accessToken);
     } catch {
       throw new UnauthorizedException(
@@ -33,6 +39,15 @@ export class AccessTokenGuard implements CanActivate {
       );
     }
 
+    const user = await this.usersService.findUserEntityById(payload.sub);
+
+    if (!user || user.credentialVersion !== payload.credentialVersion) {
+      throw new UnauthorizedException(
+        authErrorMessages.invalidOrExpiredAccessToken,
+      );
+    }
+
+    request.user = payload;
     return true;
   }
 

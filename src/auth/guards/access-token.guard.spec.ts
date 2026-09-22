@@ -4,6 +4,7 @@ import type { JwtService } from '@nestjs/jwt';
 import { authErrorMessages } from '../auth.constants.js';
 import type { AuthenticatedRequest } from '../types/authenticated-request.type.js';
 import { AccessTokenGuard } from './access-token.guard.js';
+import type { UsersService } from '../../users/users.service.js';
 
 type JwtServiceMock = {
   verifyAsync: ReturnType<typeof vi.fn>;
@@ -26,15 +27,23 @@ const createExecutionContext = (authorization?: string) => {
 describe('AccessTokenGuard', () => {
   let guard: AccessTokenGuard;
   let jwtService: JwtServiceMock;
+  const findUserEntityById = vi.fn();
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    findUserEntityById.mockResolvedValue({
+      id: 'user-id',
+      credentialVersion: 1,
+    });
 
     jwtService = {
       verifyAsync: vi.fn(),
     };
 
-    guard = new AccessTokenGuard(jwtService as unknown as JwtService);
+    guard = new AccessTokenGuard(
+      jwtService as unknown as JwtService,
+      { findUserEntityById } as unknown as UsersService,
+    );
   });
 
   it('allows a valid access token and attaches its payload to the request', async () => {
@@ -93,6 +102,45 @@ describe('AccessTokenGuard', () => {
     });
 
     expect(jwtService.verifyAsync).toHaveBeenCalledWith('invalid-access-token');
+    expect(request.user).toBeUndefined();
+    expect(findUserEntityById).not.toHaveBeenCalled();
+  });
+
+  it.each([null, { credentialVersion: 2 }])(
+    'rejects missing users or revoked versions (%j)',
+    async (user) => {
+      jwtService.verifyAsync.mockResolvedValue({
+        sub: 'user-id',
+        credentialVersion: 1,
+      });
+      findUserEntityById.mockResolvedValue(user);
+      const { context, request } = createExecutionContext(
+        'Bearer signed-token',
+      );
+      await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+      expect(request.user).toBeUndefined();
+    },
+  );
+
+  it('rejects legacy tokens without a credential version', async () => {
+    jwtService.verifyAsync.mockResolvedValue({ sub: 'user-id' });
+    const { context } = createExecutionContext('Bearer legacy-token');
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('does not disguise database errors as invalid credentials', async () => {
+    jwtService.verifyAsync.mockResolvedValue({
+      sub: 'user-id',
+      credentialVersion: 1,
+    });
+    const failure = new Error('Database unavailable');
+    findUserEntityById.mockRejectedValue(failure);
+    const { context, request } = createExecutionContext('Bearer signed-token');
+    await expect(guard.canActivate(context)).rejects.toBe(failure);
     expect(request.user).toBeUndefined();
   });
 });

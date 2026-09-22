@@ -80,10 +80,11 @@ Não depende da senha antiga nem do token de setup, não cria usuários e não
 reativa memberships. Como a senha pertence ao User, muda o login em todas as
 unidades desse usuário. Se perder a nova senha, execute a recuperação novamente.
 
-**Limitação atual:** tokens JWT emitidos antes do reset continuam válidos até
-expirar. O incremento de `credentialVersion` e sua verificação no guard serão
-implementados manualmente no checkpoint 2. A senha gerada não expira e ainda
-não há troca obrigatória no próximo login.
+O reset incrementa `credentialVersion`: tokens anteriores são rejeitados pelo
+guard nas próximas requisições. A senha gerada não expira e ainda não há troca
+obrigatória no próximo login. Após fazer login, use `PUT /v1/auth/password` com
+`currentPassword` e `newPassword`. A resposta contém um novo `accessToken`, que
+substitui o token anterior (inclusive no Authorize do Swagger).
 
 Em um ambiente com o build pronto e `DATABASE_URL` já definida, também é possível
 executar `node dist/admin/reset-owner-password.cli.js username.do.owner` em um

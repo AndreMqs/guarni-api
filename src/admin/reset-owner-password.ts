@@ -24,13 +24,17 @@ export async function resetOwnerPassword(db: DataSource, userId: string) {
 
     const password = randomBytes(24).toString('base64url');
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
-    const result = await manager.update(User, { id: userId }, { passwordHash });
+    const result = await manager.update(
+      User,
+      { id: userId, credentialVersion: user.credentialVersion },
+      { passwordHash, credentialVersion: user.credentialVersion + 1 },
+    );
     if (result.affected !== 1) {
-      throw new OwnerRecoveryError('O usuário não foi atualizado.');
+      throw new OwnerRecoveryError(
+        'As credenciais mudaram durante a recuperação. Execute novamente.',
+      );
     }
 
-    // Checkpoint 2: add credentialVersion increment when learning revocation.
-    // Until then, existing JWTs remain valid until expiration.
     return { username: user.username, password };
   });
 }

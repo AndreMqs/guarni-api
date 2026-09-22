@@ -33,7 +33,7 @@ Ao iniciar uma nova conversa:
 
 1. Abra o repositório `guarni-api`.
 2. Envie este arquivo para a IA.
-3. Peça para conferir o código, o banco e o Git antes de continuar.
+3. Peça para conferir o código e o Git antes de continuar; deixe verificações de banco e execução para uma etapa funcional pronta para teste.
 4. O código e o estado real do banco são sempre a fonte de verdade caso estejam diferentes deste snapshot.
 
 Preferência de colaboração:
@@ -42,6 +42,7 @@ Preferência de colaboração:
 - A IA deve explicar conceitos, dividir o trabalho em passos pequenos e revisar a implementação.
 - A IA só deve alterar código diretamente quando o usuário autorizar explicitamente.
 - A IA pode implementar testes quando receber autorização explícita.
+- Durante a escrita, revisar apenas arquivos e diff. Executar build, typecheck, lint e testes quando uma etapa estiver pronta para testar, rodar de verdade ou preparar para commit, ou quando o usuário solicitar explicitamente.
 - Fazer commits em marcos funcionais coerentes.
 - Não repetir configurações já concluídas.
 
@@ -553,5 +554,4 @@ f31c860 refactor: centralize user validation constants
 
 Depois de fornecer este arquivo à IA, pedir:
 
-> Confira o Git, as migrations e os testes sem alterar o código. Depois me guie na implementação do bootstrap transacional do primeiro proprietário. Eu implemento o código; você explica e revisa. Só altere arquivos quando eu autorizar explicitamente.
-
+> Confira o Git e leia o código relevante para retomar o checkpoint atual. Durante os passos de escrita, faça apenas revisão simples do código e do diff. Deixe build, typecheck, lint, testes e verificações de banco para quando houver uma etapa pronta para testar, rodar de verdade ou preparar para commit, conforme LEARNING_NEXT_STEPS.md. Eu implemento os conceitos novos; você explica e revisa. Só altere arquivos quando eu autorizar explicitamente.

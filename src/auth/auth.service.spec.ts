@@ -8,6 +8,7 @@ import { User } from '../users/entities/user.entity.js';
 import { UsersService } from '../users/users.service.js';
 import { authErrorMessages } from './auth.constants.js';
 import { AuthService } from './auth.service.js';
+import { DataSource } from 'typeorm';
 
 type UsersServiceMock = {
   findUserEntityByUsername: ReturnType<typeof vi.fn>;
@@ -20,20 +21,24 @@ type MembershipsRepositoryMock = {
   find: ReturnType<typeof vi.fn>;
 };
 
-vi.mock('argon2', () => ({ verify: vi.fn() }));
+vi.mock('argon2', () => ({ verify: vi.fn(), hash: vi.fn() }));
 
 describe('AuthService', () => {
   let authService: AuthService;
   let usersService: UsersServiceMock;
   let jwtService: JwtServiceMock;
   let membershipsRepository: MembershipsRepositoryMock;
+  const update = vi.fn();
+  const transaction = vi.fn();
 
   beforeEach(async () => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    transaction.mockImplementation((callback) => callback({ update }));
 
     const testingModule: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
+        { provide: DataSource, useValue: { transaction } },
         {
           provide: UsersService,
           useValue: {
@@ -165,6 +170,77 @@ describe('AuthService', () => {
           unit: { id: 'unit-id', name: 'Guarni Tatuapé' },
         },
       ],
+    });
+  });
+
+  describe('changePassword', () => {
+    const dto = {
+      currentPassword: 'OldPassword123!',
+      newPassword: 'NewPassword123!',
+    };
+    beforeEach(() => {
+      usersService.findUserEntityById.mockResolvedValue({
+        id: 'user-id',
+        username: 'owner',
+        passwordHash: 'old-hash',
+        credentialVersion: 3,
+      });
+      vi.mocked(argon2.verify).mockResolvedValue(true);
+      vi.mocked(argon2.hash).mockResolvedValue('new-hash');
+      update.mockResolvedValue({ affected: 1 });
+      jwtService.signAsync.mockResolvedValue('new-token');
+    });
+
+    it('updates only the verified version and signs a token with the incremented version', async () => {
+      await expect(authService.changePassword('user-id', dto)).resolves.toEqual(
+        { accessToken: 'new-token' },
+      );
+      expect(argon2.verify).toHaveBeenCalledWith(
+        'old-hash',
+        dto.currentPassword,
+      );
+      expect(update).toHaveBeenCalledWith(
+        User,
+        { id: 'user-id', credentialVersion: 3 },
+        { passwordHash: 'new-hash', credentialVersion: 4 },
+      );
+      expect(jwtService.signAsync).toHaveBeenCalledWith({
+        sub: 'user-id',
+        username: 'owner',
+        credentialVersion: 4,
+      });
+    });
+
+    it.each(['missing user', 'wrong password'])(
+      'rejects %s before writing',
+      async (scenario) => {
+        if (scenario === 'missing user')
+          usersService.findUserEntityById.mockResolvedValue(null);
+        else vi.mocked(argon2.verify).mockResolvedValue(false);
+        await expect(
+          authService.changePassword('user-id', dto),
+        ).rejects.toBeInstanceOf(UnauthorizedException);
+        expect(argon2.hash).not.toHaveBeenCalled();
+        expect(transaction).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects a concurrent credential change without issuing a token', async () => {
+      update.mockResolvedValue({ affected: 0 });
+      await expect(
+        authService.changePassword('user-id', dto),
+      ).rejects.toMatchObject({
+        message: authErrorMessages.invalidOrExpiredAccessToken,
+      });
+      expect(jwtService.signAsync).not.toHaveBeenCalled();
+    });
+
+    it('propagates signing errors out of the transaction callback', async () => {
+      const error = new Error('Signing failed');
+      jwtService.signAsync.mockRejectedValue(error);
+      await expect(authService.changePassword('user-id', dto)).rejects.toBe(
+        error,
+      );
     });
   });
 });

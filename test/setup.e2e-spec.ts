@@ -14,6 +14,7 @@ import { SETUP_LOCK_KEY } from '../src/setup/setup.constants.js';
 import type { SetupOwnerDto } from '../src/setup/dto/setup-owner.dto.js';
 import { resetOwnerPassword } from '../src/admin/reset-owner-password.js';
 import { listUsers } from '../src/admin/list-users.js';
+import { JwtService } from '@nestjs/jwt';
 
 describe('POST /v1/setup/owner (PostgreSQL)', () => {
   let app: INestApplication<App>;
@@ -120,6 +121,10 @@ describe('POST /v1/setup/owner (PostgreSQL)', () => {
 
   it('recovers an owner password without changing the user identity or memberships', async () => {
     const { body } = await setup().expect(201);
+    const oldLogin = await request(app.getHttpServer())
+      .post('/v1/auth/login')
+      .send({ username: dto.username, password: dto.password })
+      .expect(200);
     const membershipBefore = await db.manager.findOneByOrFail(Membership, {
       id: body.membership.id,
     });
@@ -132,6 +137,11 @@ describe('POST /v1/setup/owner (PostgreSQL)', () => {
     expect(recovered.password).not.toBe(dto.password);
     const stored = await db.manager.findOneByOrFail(User, { id: body.user.id });
     expect(stored.passwordHash).toMatch(/^\$argon2id\$/);
+    expect(stored.credentialVersion).toBe(2);
+    await request(app.getHttpServer())
+      .get('/v1/auth/me')
+      .set('Authorization', `Bearer ${oldLogin.body.accessToken}`)
+      .expect(401);
     expect(await argon2.verify(stored.passwordHash, recovered.password)).toBe(
       true,
     );
@@ -150,6 +160,143 @@ describe('POST /v1/setup/owner (PostgreSQL)', () => {
       await db.manager.findOneByOrFail(Unit, { id: unitBefore.id }),
     ).toEqual(unitBefore);
     expect(await counts()).toEqual([1, 1, 1]);
+  });
+
+  describe('PUT /v1/auth/password', () => {
+    const newPassword = 'NewOwnerPassword123!';
+    const login = () =>
+      request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({ username: dto.username, password: dto.password })
+        .expect(200);
+    const change = (token: string, currentPassword = dto.password) =>
+      request(app.getHttpServer())
+        .put('/v1/auth/password')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ currentPassword, newPassword });
+
+    it('changes the password, revokes the old token and accepts the replacement', async () => {
+      const created = await setup().expect(201);
+      const old = await login();
+      const response = await change(old.body.accessToken).expect(200);
+      expect(response.body).toEqual({ accessToken: expect.any(String) });
+      const claims = await app
+        .get(JwtService)
+        .verifyAsync(response.body.accessToken);
+      expect(claims.credentialVersion).toBe(2);
+      expect(
+        (await db.manager.findOneByOrFail(User, { id: created.body.user.id }))
+          .credentialVersion,
+      ).toBe(2);
+      await request(app.getHttpServer())
+        .get('/v1/auth/me')
+        .set('Authorization', `Bearer ${old.body.accessToken}`)
+        .expect(401);
+      await request(app.getHttpServer())
+        .get('/v1/auth/me')
+        .set('Authorization', `Bearer ${response.body.accessToken}`)
+        .expect(200);
+      await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({ username: dto.username, password: dto.password })
+        .expect(401);
+      await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({ username: dto.username, password: newPassword })
+        .expect(200);
+    });
+
+    it('leaves credentials unchanged on wrong password, invalid DTO or missing token', async () => {
+      const created = await setup().expect(201);
+      const before = await db.manager.findOneByOrFail(User, {
+        id: created.body.user.id,
+      });
+      const old = await login();
+      await change(old.body.accessToken, 'WrongPassword123!').expect(401);
+      await request(app.getHttpServer())
+        .put('/v1/auth/password')
+        .set('Authorization', `Bearer ${old.body.accessToken}`)
+        .send({ currentPassword: dto.password, newPassword: 'short' })
+        .expect(400);
+      await request(app.getHttpServer())
+        .put('/v1/auth/password')
+        .send({ currentPassword: dto.password, newPassword })
+        .expect(401);
+      expect(await db.manager.findOneByOrFail(User, { id: before.id })).toEqual(
+        before,
+      );
+      await request(app.getHttpServer())
+        .get('/v1/auth/me')
+        .set('Authorization', `Bearer ${old.body.accessToken}`)
+        .expect(200);
+    });
+
+    it('rolls back the password and version if signing the replacement token fails', async () => {
+      const created = await setup().expect(201);
+      const before = await db.manager.findOneByOrFail(User, {
+        id: created.body.user.id,
+      });
+      const old = await login();
+      const signing = vi
+        .spyOn(app.get(JwtService), 'signAsync')
+        .mockRejectedValueOnce(new Error('Signing failed'));
+      try {
+        await change(old.body.accessToken).expect(500);
+        expect(signing).toHaveBeenCalledOnce();
+        expect(
+          await db.manager.findOneByOrFail(User, { id: before.id }),
+        ).toEqual(before);
+      } finally {
+        signing.mockRestore();
+      }
+      await login();
+    });
+
+    it('allows only one of two concurrent password changes', async () => {
+      const created = await setup().expect(201);
+      const old = await login();
+      const blocker = db.createQueryRunner();
+      let pending: Promise<request.Response[]> | undefined;
+      try {
+        await blocker.connect();
+        await blocker.startTransaction();
+        await blocker.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [
+          created.body.user.id,
+        ]);
+        pending = Promise.all(
+          [change(old.body.accessToken), change(old.body.accessToken)].map(
+            (call) => call.timeout(10000).then((response) => response),
+          ),
+        );
+        void pending.catch(() => undefined);
+        await vi.waitFor(
+          async () => {
+            const [row] =
+              await db.query(`SELECT count(*)::int AS waiting FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event_type = 'Lock'
+              AND query LIKE 'UPDATE "users"%'`);
+            expect(row.waiting).toBe(2);
+          },
+          { timeout: 5000, interval: 25 },
+        );
+        await blocker.commitTransaction();
+        const results = await pending;
+        expect(results.map((r) => r.status).sort()).toEqual([200, 401]);
+        expect(
+          (await db.manager.findOneByOrFail(User, { id: created.body.user.id }))
+            .credentialVersion,
+        ).toBe(2);
+        const success = results.find((r) => r.status === 200)!;
+        await request(app.getHttpServer())
+          .get('/v1/auth/me')
+          .set('Authorization', `Bearer ${success.body.accessToken}`)
+          .expect(200);
+      } finally {
+        if (blocker.isTransactionActive) await blocker.rollbackTransaction();
+        await blocker.release();
+        if (pending) await Promise.allSettled([pending]);
+      }
+    }, 15000);
   });
 
   it.each([

@@ -32,7 +32,9 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({ type: LoginResponseDto })
-  @ApiUnauthorizedResponse({ description: authErrorMessages.invalidCredentials })
+  @ApiUnauthorizedResponse({
+    description: authErrorMessages.invalidCredentials,
+  })
   login(@Body() loginDto: LoginDto): Promise<LoginResponseDto> {
     return this.authService.login(loginDto);
   }
@@ -53,10 +55,14 @@ export class AuthController {
   @Put('password')
   @UseGuards(AccessTokenGuard)
   @ApiBearerAuth()
+  @ApiOkResponse({ type: LoginResponseDto })
+  @ApiUnauthorizedResponse({
+    description: 'Senha atual incorreta ou token inválido/revogado.',
+  })
   changePassword(
     @Req() request: AuthenticatedRequest,
     @Body() dto: ChangePasswordDto,
-  ) {
+  ): Promise<LoginResponseDto> {
     return this.authService.changePassword(request.user.sub, dto);
   }
 }

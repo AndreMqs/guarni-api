@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
 
@@ -173,9 +173,24 @@ Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 
 ## Continuação guiada de backend
 
-Para continuar o MVP respeitando a trilha de aprendizado, leia:
+Os quatro arquivos ficam em `docs/agents/`. O `AGENTS.md` da raiz é apenas um apontador para carregá-los:
 
-- `GUARNI_API_MVP_IMPLEMENTATION_PLAN.md` — especificação funcional/técnica do backend.
-- `LEARNING_NEXT_STEPS.md` — separa boilerplate já preparado dos conceitos novos que devem ser implementados manualmente.
+- `docs/agents/AGENTS.md`: regras gerais para a IA, versionadas e independentes do estado do projeto.
+- `docs/agents/AGENTS.override.md`: regras pessoais de aprendizagem, somente nesta máquina,
+  ignoradas pelo Git e pelo contexto Docker. O apontador da raiz manda ler esse complemento se existir.
+
+Um clone/deploy a partir do Git não recebe o override. O build Nest compila `src`
+e não copia esses Markdown para `dist`. O ignore do Git não controla cópias manuais:
+em uploads de toda a pasta local, exclua explicitamente o override. Nenhum deploy
+foi criado ou alterado por essa separação. O arquivo técnico continua no repositório;
+ele orienta agentes e não é executado pela API.
+
+Referência de carregamento: [documentação oficial de AGENTS.md](https://developers.openai.com/codex/guides/agents-md).
+
+Contexto e documentação:
+
+- `docs/agents/PROJECT_CONTEXT.md` — retomada compacta para a IA: estado, comandos, invariantes e próximo passo.
+- `docs/agents/LEARNING_NEXT_STEPS.md` — guia humano do progresso; não deve ser lido automaticamente pelo agente.
+- `docs/MVP_SPEC.md` — contratos detalhados; consultar apenas a seção necessária.
 
 Algumas rotas novas retornam `501 Not Implemented` de propósito até os respectivos checkpoints de aprendizado serem concluídos.

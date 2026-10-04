@@ -1,58 +1,14 @@
-# Guarni API — plano definitivo de implementação do MVP
+﻿# Especificação do MVP — Guarni API
 
-**Data de consolidação:** 19/09/2026  
-**Repositório alvo:** `guarni-api`  
-**Frontend de referência:** `guarni-web` atual enviado junto deste plano  
-**Objetivo:** implementar no backend tudo que o frontend atual precisa para sair dos mocks e consumir dados reais, sem redesenhar o frontend nesta etapa.
+Contratos e regras de produto consolidados em 19/09/2026. Referência sob demanda: buscar apenas a seção da tarefa. Não representa funcionalidades já implementadas nem autoriza executar todas as etapas.
 
----
+Estado e próximo passo: [PROJECT_CONTEXT.md](agents/PROJECT_CONTEXT.md). Regras de trabalho: AGENTS.md da raiz e arquivos indicados por ele; prevalecem sobre orientações de execução antigas desta especificação. Os critérios de aceite abaixo não são um relatório de progresso.
 
-## 1. Instrução principal para o Codex
+Escopo: backend guarni-api; integração com guarni-web em etapa posterior. A API retorna dados estruturados; labels e apresentação ficam no frontend.
 
-Este documento é uma especificação de implementação para o **backend**.
-
-### Regra desta fase
-
-- Trabalhar **somente no `guarni-api`**.
-- **Não alterar o `guarni-web` agora.**
-- O frontend atual serve como referência dos fluxos, hooks e dados necessários.
-- Não tentar adaptar o backend aos textos visuais, labels, iniciais, cores ou formatação de datas do frontend. A API deve devolver dados estruturados; o adaptador do frontend fará a apresentação quando iniciarmos a integração.
-- Preservar o padrão atual do backend: NestJS modular, TypeORM, PostgreSQL, DTOs, migrations, Swagger, Vitest e E2E.
-- Implementar em **incrementos revisáveis**, seguindo a ordem deste documento. Não gerar toda a aplicação em um único arquivo ou em módulos gigantes.
-- A cada etapa: implementar, criar/atualizar migrations, adicionar testes, rodar `build`, `lint`, testes unitários e E2E pertinentes e corrigir falhas antes de avançar.
-- Não fazer deploy automaticamente.
-- Não criar funcionalidades explicitamente marcadas como **fora do MVP**.
-
-O código e o banco são a fonte de verdade. Se alguma descrição antiga do projeto contradizer o estado atual do repositório, preserve o comportamento atual que já está validado, exceto onde este documento explicitamente manda alterá-lo.
+A numeração original foi preservada para facilitar buscas e referências.
 
 ---
-
-## 2. Estado atual confirmado do backend
-
-O projeto já possui:
-
-- NestJS 12.
-- TypeScript ESM/NodeNext.
-- TypeORM.
-- PostgreSQL.
-- `synchronize: false`.
-- migrations para `users`, `units` e `memberships`.
-- JWT access token.
-- Argon2id.
-- `POST /v1/auth/login`.
-- `GET /v1/auth/me` ainda simplificado.
-- rotas temporárias públicas de usuários.
-- Swagger.
-- CORS, Helmet e `ValidationPipe` global com `whitelist` + `forbidNonWhitelisted`.
-- Vitest e Supertest.
-- `users` com username único global.
-- `units`.
-- `memberships` com roles `OWNER`, `MANAGER`, `EMPLOYEE`.
-
-O próximo trabalho deve evoluir essa base, não substituí-la por outra arquitetura.
-
----
-
 ## 3. Convenções que devem continuar
 
 ### Código
@@ -2655,6 +2611,30 @@ Mudanças pontuais inevitáveis na futura integração incluem:
 
 ---
 
+### Checklist de integração (levantamento de setembro/2026; revalidar no guarni-web)
+
+| Situação atual | Ajuste necessário |
+| --- | --- |
+| Login aceita aliases e cria contas em memória | Usar login real; retirar inferência de papel e contas demo da autenticação de produção |
+| `CurrentUserContext` tem unidade fixa e papel apresentado como label | Compor usuário/membership/unidade reais; não tratar papel como global |
+| Store limita unidade a `tatuape | liberdade` | Aceitar IDs reais e unidades da sessão |
+| Quase todas as funções/keys não recebem unidade | Incluir `unitId` nas APIs, query keys, seleções e invalidações |
+| Tarefas de operação, gestão, painel e histórico têm mocks independentes | Compartilhar os mesmos IDs, estados e projeções retornados pelo backend |
+| `getHistoryDay` não recebe data | Guardar/enviar data e incluir na query key |
+| Correção de auditoria envia título, não tarefa/execução | Enviar IDs e versão; título é somente apresentação |
+| `getLatestAuditCorrection` é global | Abrir comprovante pelo `correctionId` retornado |
+| Upload transmite apenas `evidenceName` | Transmitir `File`, receber `evidenceId` e renderizar foto real/expirada |
+| Permissão de foto derivada de labels; estados incompletos nos mocks | Consumir `isEvidenceRequired`, `isCommentEnabled` e permissões explícitas |
+| Desativar/reatribuir exige duas mutations | Usar operação transacional única |
+| `isActive` do mock bloqueia conta global | Representar desativação por membership e contexto acessível |
+| Mutations invalidam somente domínio local | Atualizar tarefa, Hoje, catálogo, painel, histórico, auditoria e mídias afetadas |
+| Totais calculados pela lista retornada | Usar agregados do servidor ao paginar |
+| Hoje e datas dependem do dispositivo | Inicializar pelo contexto operacional e revalidar na virada do dia |
+| Tipos retornam `undefined` e views possuem fallbacks estáticos | Tratar `404`, vazio, carregamento e erro sem mostrar dados de demonstração |
+| Rotas de conflito/restrição são demonstrativas | Acioná-las por códigos reais `409`/`403` e recarregar estado sem sobrescrever |
+
+Manter o padrão view → hook → API/adaptador. Entretanto, não é realista prometer alteração somente no corpo de `src/api`: unidade, data, paginação, arquivos, IDs e versões exigem ajustes pontuais também em hooks, stores e formulários.
+
 # PARTE XVIII — Critério de conclusão
 
 ## 78. Definition of Done do backend MVP
@@ -2694,7 +2674,7 @@ O trabalho descrito neste documento está concluído quando:
 - [ ] `npm run test:e2e` passa com PostgreSQL;
 - [ ] `.env.example` contém todas as novas variáveis sem segredos reais;
 - [ ] nenhum log/response contém senha, hash, setup token, access token ou credenciais de storage;
-- [ ] `PROJECT_CONTEXT.md` é atualizado ao final com o novo estado real do backend.
+- [ ] `docs/agents/PROJECT_CONTEXT.md` é atualizado ao final com o novo estado real do backend.
 
 ---
 
@@ -2705,3 +2685,4 @@ Priorizar **correção, simplicidade e testes** em vez de criar abstrações par
 Se durante a implementação surgir uma dúvida que altere regra de produto deste documento, **não inventar silenciosamente**. Registrar a dúvida e parar apenas aquela regra específica; continuar o que for independente dela.
 
 Pequenas decisões técnicas internas que não mudem contrato ou regra de negócio podem ser tomadas seguindo o padrão já existente do projeto.
+

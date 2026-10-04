@@ -4,3 +4,6 @@ dist
 .env
 
 *.tsbuildinfo
+
+# Instruções pessoais de aprendizagem: apenas nesta máquina.
+/docs/agents/AGENTS.override.md

@@ -12,6 +12,10 @@ export const unitDefaults = {
   closingTime: '03:00',
 } as const;
 
+export const unitValidationMessages = {
+  invalidTimezone: 'timezone deve ser um fuso horário IANA válido.',
+} as const;
+
 export const unitsErrorMessages = {
   unityNotFound: 'Unidade não encontrada.',
 };

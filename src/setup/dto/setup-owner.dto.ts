@@ -1,12 +1,21 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, Length, Matches } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsTimeZone,
+  Length,
+  Matches,
+} from 'class-validator';
 import {
   userFieldLimits,
   usernameAllowedCharactersPattern,
   userValidationMessages,
 } from '../../users/users.constants.js';
-import { unitFieldLimits } from '../../units/units.constants.js';
+import {
+  unitFieldLimits,
+  unitValidationMessages,
+} from '../../units/units.constants.js';
 
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -52,6 +61,7 @@ export class SetupOwnerDto {
   @ApiPropertyOptional({ example: 'America/Sao_Paulo' })
   @IsOptional()
   @IsString()
+  @IsTimeZone({ message: unitValidationMessages.invalidTimezone })
   timezone?: string;
 
   @ApiPropertyOptional({ example: '03:00' })

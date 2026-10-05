@@ -434,6 +434,7 @@ describe('POST /v1/setup/owner (PostgreSQL)', () => {
     { ...dto, password: 'short' },
     { ...dto, unitName: '  ' },
     { ...dto, role: 'OWNER' },
+    { ...dto, timezone: 'Invalid/Timezone' },
     { ...dto, closingTime: '25:00' },
   ])('rejects invalid input without writing: %j', async (body) => {
     await setup(body).expect(400);

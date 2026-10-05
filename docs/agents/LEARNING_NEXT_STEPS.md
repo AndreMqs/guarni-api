@@ -1,4 +1,4 @@
-﻿# Guarni — progresso e próximos passos
+# Guarni — progresso e próximos passos
 
 Atualizado em 05/10/2026. Este guia acompanha o aprendizado.
 A IA retoma pelo PROJECT_CONTEXT.md; regras de colaboração ficam nos AGENTS.
@@ -37,15 +37,16 @@ PATCH de role pratica lock pessimista, proteção do último OWNER, expectedVers
 snapshots e BusinessEvent na mesma transação. Listagem/detalhe de memberships foi
 automatizada depois como repetição.
 
-### 5. Dia operacional — núcleo aprendido
+### 5. Dia operacional — concluído
 No commit d60f587 você implementou ClockService, Luxon, timezone IANA e a regra
 do corte operacional. Com fechamento 03:00, 02:59 ainda pertence ao dia anterior
 e 03:00 inicia o novo dia. Você confirmou os testes do cálculo passando.
 
-O restante do C5 pode ser automatizado: persistir/reusar operational_days,
-recuperar a corrida de duas requests pela constraint UNIQUE(unitId,date),
-expor GET /v1/units/:unitId/context, documentar o response e cobrir o fluxo com
-testes repetitivos.
+Depois disso, o restante foi automatizado no commit 9167d8f: operational_days
+passou a ser persistido/reutilizado, a corrida de duas requests é recuperada pela
+constraint UNIQUE(unitId,date), e GET /v1/units/:unitId/context expõe unidade,
+membership, permissões, dia operacional e serverTime. O setup também valida que
+o timezone informado é um identificador IANA válido.
 
 ## Próximos núcleos novos
 
@@ -76,8 +77,9 @@ view -> hook -> api/adaptador -> HTTP, usando IDs, versões, arquivos e erros re
 ## Validação
 
 Antes de C5: 46 unitários + 68 E2E, build/lint e tipos src+test OK.
-Após o núcleo manual de C5, você confirmou npm test passando.
-A automação do restante de C5 adiciona testes de persistência/concorrência e E2E
-de /context; execute build, lint, unitários e E2E localmente antes de commitar.
+Após o núcleo manual de C5, você confirmou npm test passando. Depois da automação
+e da correção dos cleanups de OperationalDay, o fluxo voltou a passar e o commit
+9167d8f foi enviado. O micro-ajuste de validação IANA deve ser verificado com
+build, lint, unitários e E2E antes do próximo commit.
 
 Os E2E usam e limpam guarni_test; nunca apontar para dados reais.

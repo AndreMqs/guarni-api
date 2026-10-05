@@ -1,11 +1,10 @@
-﻿# Contexto rápido — 2026-10-05
+# Contexto rápido — 2026-10-05
 
 ## Estado / próxima ação
 Guarni: checklist operacional de restaurantes. Repositório guarni-api; guarni-web separado e congelado até a etapa futura de integração.
 FEITO: C1 bootstrap atômico; C2 troca/reset+revogação; C3 autorização por unidade+GET settings; C4 alteração de role com hierarquia, lock, último OWNER, expectedVersion e BusinessEvent atômico; GET memberships/listagem e detalhe com filtros e isolamento.
-C5 NÚCLEO PRATICADO no commit d60f587: ClockService, Luxon, timezone IANA, corte operacional e limites 02:59/03:00; usuário confirmou os testes do cálculo passando.
-C5 RESTANTE preparado: persistência idempotente de operational_day usando UNIQUE(unitId,date) para recuperar corrida concorrente; GET /v1/units/:unitId/context com unidade, membership, permissões, operationalDay e serverTime; Swagger e E2E do contexto. Executar checks locais antes do próximo commit.
-PRÓXIMO após validar C5: automatizar repetições já aprendidas e avançar ao próximo núcleo realmente novo. PATCH settings/expectedVersion é repetição do padrão já praticado; scheduler, fotos/storage e agregações continuam conceitos novos.
+C5 CONCLUÍDO: núcleo manual no commit d60f587 (ClockService, Luxon, timezone IANA, corte operacional e limites 02:59/03:00) e automação no commit 9167d8f (persistência idempotente de operational_day, recuperação da corrida por UNIQUE(unitId,date), GET /context, permissões, Swagger e E2E). Ajuste final atual: setup rejeita timezone que não seja IANA válido.
+PRÓXIMO: C6 PATCH settings/expectedVersion é repetição do padrão já praticado e pode ser automatizado; depois avançar para o primeiro núcleo realmente novo de execução concorrente.
 PENDENTE de produto: PATCH settings, cadastro/reativação/desativação/reset pela API de equipe, tarefas/execuções/fechamento/evidências/correções/dashboard/histórico/auditoria. Contratos/entities preparados não significam regra implementada; preservar stubs 501 fora do fluxo atual.
 
 ## Stack / mapa
@@ -39,8 +38,8 @@ Podem ser automatizados quando equivalentes: CRUD/DTO/Swagger/filtros/testes rep
 Ainda novos/aprofundar: primeira execução concorrente completa (execução x fechamento), scheduler/reconciliação, multipart/sharp/S3, índice parcial e primeira agregação QueryBuilder/SQL.
 
 ## Validação
-Antes de d60f587: 46 unitários + 68 E2E, build/lint e tipos src+test OK. Usuário confirmou npm test passando após adicionar os testes didáticos do cálculo operacional.
-O restante automatizado do C5 adiciona testes de persistência/concorrência e E2E de /context, mas esses checks ainda precisam ser executados localmente antes do commit correspondente.
+Antes de d60f587: 46 unitários + 68 E2E, build/lint e tipos src+test OK. No núcleo manual de C5, o usuário confirmou npm test passando.
+Após a automação do C5 e o ajuste dos cleanups de OperationalDay, o usuário confirmou que o fluxo voltou a passar e enviou o commit 9167d8f. Neste micro-ajuste de timezone, reexecutar build, lint, unitários e E2E antes do commit.
 
 ## Detalhes sob demanda
 docs/MVP_SPEC.md: única especificação detalhada; buscar seção por assunto, não ler inteiro. Contratos futuros não provam implementação.

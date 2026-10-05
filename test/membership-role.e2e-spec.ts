@@ -18,7 +18,7 @@ import { MembershipsService } from '../src/memberships/memberships.service.js';
 import { Unit } from '../src/units/entities/unit.entity.js';
 import { User } from '../src/users/entities/user.entity.js';
 
-describe('Membership role changes (PostgreSQL)', () => {
+describe('Membership reads and role changes (PostgreSQL)', () => {
   let app: INestApplication<App>;
   let db: DataSource;
   let unit: Unit;
@@ -84,6 +84,178 @@ describe('Membership role changes (PostgreSQL)', () => {
   afterEach(clean);
   afterAll(async () => {
     if (app) await app.close();
+  });
+
+  describe('team list and detail', () => {
+    const readTeam = async (
+      params: {
+        actor?: Membership;
+        membershipId?: string;
+        query?: Record<string, string>;
+        unitId?: string;
+      } = {},
+    ) => {
+      const actor = params.actor ?? owner;
+      const accessToken = await app.get(JwtService).signAsync({
+        sub: actor.userId,
+        credentialVersion: 1,
+      });
+      const path =
+        '/v1/units/' +
+        (params.unitId ?? unit.id) +
+        '/memberships' +
+        (params.membershipId ? '/' + params.membershipId : '');
+      return request(app.getHttpServer())
+        .get(path)
+        .set('Authorization', 'Bearer ' + accessToken)
+        .query(params.query ?? {});
+    };
+
+    it('returns only safe identification fields, including inactive members', async () => {
+      const employee = await createMember('EMPLOYEE');
+      await db.manager.update(Membership, employee.id, { isActive: false });
+      const response = await readTeam();
+      expect(response.status).toBe(200);
+      expect(response.body.items).toHaveLength(2);
+      expect(
+        response.body.items.find((item: Membership) => item.id === employee.id),
+      ).toEqual({
+        id: employee.id,
+        role: 'EMPLOYEE',
+        isActive: false,
+        version: 1,
+        user: {
+          id: employee.userId,
+          name: 'Test EMPLOYEE',
+          username: expect.any(String),
+        },
+      });
+      expect(JSON.stringify(response.body)).not.toMatch(
+        /password|credentialVersion|createdAt|unitId/,
+      );
+      const detail = await readTeam({ membershipId: employee.id });
+      expect(detail.status).toBe(200);
+      expect(detail.body).toEqual(
+        response.body.items.find((item: Membership) => item.id === employee.id),
+      );
+    });
+
+    it('combines role, active status and case-insensitive name/username filters', async () => {
+      const employee = await createMember('EMPLOYEE');
+      await db.manager.update(User, employee.userId, {
+        name: 'Alice Silva',
+        username: 'alice.silva',
+      });
+      const inactive = await createMember('EMPLOYEE');
+      await db.manager.update(Membership, inactive.id, { isActive: false });
+      const filtered = await readTeam({
+        query: { role: 'EMPLOYEE', isActive: 'true', search: '  ALICE  ' },
+      });
+      expect(filtered.status).toBe(200);
+      expect(filtered.body.items.map((item: Membership) => item.id)).toEqual([
+        employee.id,
+      ]);
+      expect(
+        (await readTeam({ query: { search: 'ICE.SIL' } })).body.items,
+      ).toHaveLength(1);
+      expect(
+        (await readTeam({ query: { isActive: 'false' } })).body.items.map(
+          (item: Membership) => item.id,
+        ),
+      ).toEqual([inactive.id]);
+      expect(
+        (await readTeam({ query: { search: '   ' } })).body.items,
+      ).toHaveLength(3);
+      expect(
+        (await readTeam({ query: { search: 'missing person' } })).body,
+      ).toEqual({ items: [] });
+    });
+
+    it.each(['%', '_', "' OR 1=1 --"])(
+      'treats search %s as literal text',
+      async (search) => {
+        const response = await readTeam({ query: { search } });
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ items: [] });
+      },
+    );
+
+    it('orders equal names by username for stable results', async () => {
+      const first = await createMember('EMPLOYEE');
+      const second = await createMember('EMPLOYEE');
+      await db.manager.update(User, first.userId, {
+        name: 'Alice',
+        username: 'b.alice',
+      });
+      await db.manager.update(User, second.userId, {
+        name: 'alice',
+        username: 'a.alice',
+      });
+      const response = await readTeam({ query: { search: 'alice' } });
+      expect(response.body.items.map((item: Membership) => item.id)).toEqual([
+        second.id,
+        first.id,
+      ]);
+    });
+
+    it('allows managers to list all roles but read details only for employees', async () => {
+      const manager = await createMember('MANAGER');
+      const employee = await createMember('EMPLOYEE');
+      expect((await readTeam({ actor: manager })).body.items).toHaveLength(3);
+      expect(
+        (await readTeam({ actor: manager, membershipId: employee.id })).status,
+      ).toBe(200);
+      expect(
+        (await readTeam({ actor: manager, membershipId: owner.id })).status,
+      ).toBe(403);
+      expect(
+        (await readTeam({ actor: manager, membershipId: manager.id })).status,
+      ).toBe(403);
+    });
+
+    it('denies employees and inactive members', async () => {
+      const employee = await createMember('EMPLOYEE');
+      expect((await readTeam({ actor: employee })).status).toBe(403);
+      expect(
+        (await readTeam({ actor: employee, membershipId: employee.id })).status,
+      ).toBe(403);
+      await db.manager.update(Membership, owner.id, { isActive: false });
+      expect((await readTeam()).status).toBe(403);
+      expect((await readTeam({ membershipId: employee.id })).status).toBe(403);
+    });
+
+    it('isolates units and returns the same error for foreign and missing targets', async () => {
+      const otherUnit = await db.manager.save(Unit, { name: 'Other team' });
+      const foreign = await createMember('OWNER', otherUnit.id);
+      expect(
+        (await readTeam()).body.items.map((item: Membership) => item.id),
+      ).toEqual([owner.id]);
+      const denied = await readTeam({ membershipId: foreign.id });
+      const missing = await readTeam({ membershipId: randomUUID() });
+      expect(denied.status).toBe(404);
+      expect(missing.status).toBe(404);
+      expect(denied.body).toEqual(missing.body);
+      expect((await readTeam({ unitId: otherUnit.id })).status).toBe(403);
+    });
+
+    it('validates filters and UUIDs and requires authentication', async () => {
+      const invalidFilters: Record<string, string>[] = [
+        { role: 'ADMIN' },
+        { isActive: 'invalid' },
+        { extra: 'unexpected' },
+      ];
+      for (const query of invalidFilters) {
+        expect((await readTeam({ query })).status).toBe(400);
+      }
+      expect((await readTeam({ membershipId: 'invalid' })).status).toBe(400);
+      expect((await readTeam({ unitId: 'invalid' })).status).toBe(400);
+      await request(app.getHttpServer())
+        .get('/v1/units/' + unit.id + '/memberships')
+        .expect(401);
+      await request(app.getHttpServer())
+        .get('/v1/units/' + unit.id + '/memberships/' + owner.id)
+        .expect(401);
+    });
   });
 
   it('updates role/version and records only safe snapshots in the same operation', async () => {

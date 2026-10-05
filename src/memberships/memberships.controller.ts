@@ -30,6 +30,10 @@ import { MembershipsService } from './memberships.service.js';
 import { CurrentMembership } from './decorators/current-membership.decorator.js';
 import { Membership } from './entities/membership.entity.js';
 import { UpdateMembershipRoleResponseDto } from './dto/update-membership-role-response.dto.js';
+import {
+  MembershipResponseDto,
+  MembershipListResponseDto,
+} from './dto/membership-response.dto.js';
 
 @ApiTags('memberships')
 @ApiBearerAuth()
@@ -39,19 +43,23 @@ export class MembershipsController {
   constructor(private readonly membershipsService: MembershipsService) {}
 
   @Get('memberships')
+  @ApiParam({ name: 'unitId', type: String, format: 'uuid' })
+  @ApiOkResponse({ type: MembershipListResponseDto })
   list(
-    @Param('unitId', new ParseUUIDPipe()) unitId: string,
+    @CurrentMembership() requestingMembership: Membership,
     @Query() query: ListMembershipsQueryDto,
-  ) {
-    return this.membershipsService.list(unitId, query);
+  ): Promise<MembershipListResponseDto> {
+    return this.membershipsService.list(requestingMembership, query);
   }
 
   @Get('memberships/:membershipId')
+  @ApiParam({ name: 'unitId', type: String, format: 'uuid' })
+  @ApiOkResponse({ type: MembershipResponseDto })
   getById(
-    @Param('unitId', new ParseUUIDPipe()) unitId: string,
+    @CurrentMembership() requestingMembership: Membership,
     @Param('membershipId', new ParseUUIDPipe()) membershipId: string,
-  ) {
-    return this.membershipsService.getById(unitId, membershipId);
+  ): Promise<MembershipResponseDto> {
+    return this.membershipsService.getById(requestingMembership, membershipId);
   }
 
   @Post('users')

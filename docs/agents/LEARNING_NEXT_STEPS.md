@@ -71,7 +71,12 @@ donos concorrentes e rollback. A resposta contém apenas id, role e version,
 com documentação no Swagger. A verificação manual ainda não foi registrada.
 
 Arquivos de partida: src/memberships/memberships.service.ts, controller e DTOs.
-Desativação, reativação e demais rotas de equipe continuam pendentes.
+Listagem e detalhe de equipe foram implementados automaticamente como repetição
+dos conceitos praticados. GET memberships aceita search, isActive e role;
+OWNER/MANAGER listam todos os papéis da unidade. No detalhe, OWNER acessa todos
+e MANAGER somente EMPLOYEE. As respostas não expõem credenciais e estão no Swagger.
+Os dez novos cenários de teste cobrem filtros, permissões e isolamento.
+Cadastro, desativação, reativação e reset pela API de equipe continuam pendentes.
 
 ## Depois disso
 
@@ -114,11 +119,10 @@ Depois da primeira prática, repetições e testes autorizados podem ser automat
 Durante a escrita, a revisão é por leitura. Formatação e verificações pesadas
 ficam para um fluxo pronto para testar, executar ou preparar para commit.
 
-Última validação: 46 testes unitários e 58 E2E passaram, além de build,
+Última validação: 46 testes unitários e 68 E2E passaram, além de build,
 tipos (incluindo testes) e lint. A checagem estrutural também confirmou o limite
-de três parâmetros em src e test. Esses checks passaram novamente após a revisão
-dos fluxos anteriores. O checkpoint 4 está no commit d3ba95e; a refatoração
-posterior ainda não foi commitada.
+de três parâmetros em src e test. Esses checks passaram novamente após a entrega
+da listagem e do detalhe. Este incremento ainda não foi commitado.
 Os E2E usam e limpam guarni_test; não devem apontar para dados reais.
 
 Para conferir manualmente: iniciar a API, abrir /docs, fazer login, usar Authorize

@@ -4,8 +4,9 @@
 Guarni: checklist operacional de restaurantes. Repositório guarni-api; guarni-web separado, fora do escopo atual.
 FEITO: C1 bootstrap atômico; C2 troca/reset+revogação; C3 autorização por unidade+GET settings; CLIs listar/reset.
 C4 VALIDADO: PATCH membership role com hierarquia, lock da unidade, revalidação do solicitante, último OWNER, versão/update condicionado e BusinessEvent atômico. Resposta 200 id/role/version, documentada no Swagger; métodos privados. test/membership-role.e2e-spec.ts: 17 cenários. PRÓXIMO: C5 contexto/dia operacional; não antecipar implementação sem orientação.
-PENDENTE: contexto/dia operacional, PATCH settings, gestão de equipe/tarefas/execuções/evidências/auditoria; contratos/entities prontos não significam regra implementada. Preservar stubs 501.
-VALIDAÇÃO: 46 unitários + 58 E2E passando; build/lint e tipos src+test OK. C4 testado em guarni_test: hierarquia, isolamento, versão, concorrência e rollback do evento. Settings/alteração de papel manual sem confirmação. Sem commit.
+FEITO também: GET memberships (OWNER/MANAGER, filtros search/isActive/role, todos os papéis) e GET membership por id (OWNER todos; MANAGER só EMPLOYEE). DTOs/Swagger; somente identificação pública, sem credenciais. Busca literal trim/lowercase, ordem nome/username/id.
+PENDENTE: contexto/dia operacional, PATCH settings, cadastro/reativação/desativação/reset pela API de equipe, tarefas/execuções/evidências/auditoria; contratos/entities prontos não significam regra implementada. Preservar stubs 501.
+VALIDAÇÃO atual: 46 unitários + 68 E2E passando; build/lint e tipos src+test OK. 10 novos cenários de listagem/detalhe. Testes só guarni_test. Leitura/equipe e settings manual sem confirmação. Este incremento sem commit.
 
 ## Stack / mapa
 Node24/Nest12/TS ESM NodeNext/TypeORM/PG17/Argon2id/JWT/Vitest/Supertest. Versões: package.json/lock.
@@ -32,6 +33,7 @@ Admin: npm run admin:list-users / npm run owner:reset-password -- <username>
 Reset é interativo e imprime senha: não logar. Build Nest exclui tipos dos testes; conferir separadamente no marco relevante. Sem reinstalação automática.
 
 ## Progresso de estudo (aplicar apenas no modo local)
+Usuário autorizou automatizar repetições dos conceitos praticados; listagem/detalhe implementados nesse modo. Conceitos novos (dia/fuso, scheduler, fotos/storage, agregações) continuam guiados.
 Praticados: Nest/DI/DTO/Swagger/Joi; TypeORM/migrations/constraints/23505; Argon2/JWT/testes; transações/advisory/timingSafeEqual/revogação/update condicionado; membership/decorator.
 Praticados no C4: lock pessimista/último OWNER, expectedVersion, snapshots e primeiro BusinessEvent atômico. Novos/aprofundar: C5 Luxon/Clock/dia; C6 settings; C7 eventos nos demais fluxos; C8 execução/fechamento; C9 scheduler; C10 multipart/sharp/S3; C11 índice parcial; C12 agregações.
 

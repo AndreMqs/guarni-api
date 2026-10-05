@@ -26,6 +26,10 @@ import {
   businessEventTypes,
 } from '../business-events/business-events.constants.js';
 import { UpdateMembershipRoleResponseDto } from './dto/update-membership-role-response.dto.js';
+import type {
+  MembershipResponseDto,
+  MembershipListResponseDto,
+} from './dto/membership-response.dto.js';
 
 type UpdateRoleParams = {
   requestingMembership: Membership;
@@ -53,12 +57,107 @@ type RecordRoleChangeEventParams = {
 export class MembershipsService {
   constructor(private readonly dataSource: DataSource) {}
 
-  list(_unitId: string, _query: ListMembershipsQueryDto): never {
-    throw new NotImplementedException('Aguardando autorização por membership.');
+  async list(
+    requestingMembership: Membership,
+    filters: ListMembershipsQueryDto,
+  ): Promise<MembershipListResponseDto> {
+    this.ensureCanReadTeam(requestingMembership);
+    const query = this.createMembershipReadQuery(requestingMembership.unitId);
+    if (filters.isActive !== undefined) {
+      query.andWhere('membership.isActive = :isActive', {
+        isActive: filters.isActive,
+      });
+    }
+    if (filters.role !== undefined) {
+      query.andWhere('membership.role = :role', { role: filters.role });
+    }
+    const search = filters.search?.trim().toLowerCase();
+    if (search) {
+      // Literal substring search: %, _ and quotes are not wildcard operators.
+      query.andWhere(
+        '(POSITION(:search IN LOWER(TRIM(user.name))) > 0 OR POSITION(:search IN LOWER(TRIM(user.username))) > 0)',
+        { search },
+      );
+    }
+    const memberships = await query
+      .orderBy('LOWER(user.name)', 'ASC')
+      .addOrderBy('user.username', 'ASC')
+      .addOrderBy('membership.id', 'ASC')
+      .getMany();
+    return {
+      items: memberships.map((membership) =>
+        this.mapMembershipResponse(membership),
+      ),
+    };
   }
 
-  getById(_unitId: string, _membershipId: string): never {
-    throw new NotImplementedException('Aguardando autorização/hierarquia.');
+  async getById(
+    requestingMembership: Membership,
+    membershipId: string,
+  ): Promise<MembershipResponseDto> {
+    this.ensureCanReadTeam(requestingMembership);
+    const membership = await this.createMembershipReadQuery(
+      requestingMembership.unitId,
+    )
+      .andWhere('membership.id = :membershipId', { membershipId })
+      .getOne();
+    if (!membership) {
+      throw new NotFoundException(
+        membershipManagementErrorMessages.membershipNotFound,
+      );
+    }
+    if (
+      requestingMembership.role === membershipRoles.manager &&
+      membership.role !== membershipRoles.employee
+    ) {
+      throw new ForbiddenException(
+        membershipManagementErrorMessages.accessDenied,
+      );
+    }
+    return this.mapMembershipResponse(membership);
+  }
+
+  private ensureCanReadTeam(membership: Membership): void {
+    if (
+      !membership.isActive ||
+      (membership.role !== membershipRoles.owner &&
+        membership.role !== membershipRoles.manager)
+    ) {
+      throw new ForbiddenException(
+        membershipManagementErrorMessages.accessDenied,
+      );
+    }
+  }
+
+  private createMembershipReadQuery(unitId: string) {
+    return this.dataSource
+      .getRepository(Membership)
+      .createQueryBuilder('membership')
+      .innerJoin('membership.user', 'user')
+      .select([
+        'membership.id',
+        'membership.role',
+        'membership.isActive',
+        'membership.version',
+        'user.id',
+        'user.name',
+        'user.username',
+      ])
+      .where('membership.unitId = :unitId', { unitId });
+  }
+
+  private mapMembershipResponse(membership: Membership): MembershipResponseDto {
+    return {
+      id: membership.id,
+      role: membership.role,
+      isActive: membership.isActive,
+      version: membership.version,
+      user: {
+        id: membership.user.id,
+        name: membership.user.name,
+        username: membership.user.username,
+      },
+    };
   }
 
   createUser(_unitId: string, _dto: CreateUnitUserDto): never {

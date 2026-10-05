@@ -66,22 +66,24 @@ export class UsersService {
 
       return mapUserToResponse(savedUser);
     } catch (error) {
-      if (error instanceof QueryFailedError) {
-        const databaseError = error.driverError as {
-          code?: string;
-          constraint?: string;
-        };
-
-        if (
-          databaseError.code === postgresErrorCodes.uniqueViolation &&
-          databaseError.constraint === usernameUniqueConstraint
-        ) {
-          throw new ConflictException(userErrorMessages.usernameAlreadyInUse);
-        }
+      if (this.isUsernameConflict(error)) {
+        throw new ConflictException(userErrorMessages.usernameAlreadyInUse);
       }
 
       throw error;
     }
+  }
+
+  private isUsernameConflict(error: unknown): boolean {
+    if (!(error instanceof QueryFailedError)) return false;
+    const databaseError = error.driverError as {
+      code?: string;
+      constraint?: string;
+    };
+    return (
+      databaseError.code === postgresErrorCodes.uniqueViolation &&
+      databaseError.constraint === usernameUniqueConstraint
+    );
   }
 
   async deleteUserById(userId: string): Promise<void> {

@@ -12,6 +12,7 @@ Node24/Nest12/TS ESM NodeNext/TypeORM/PG17/Argon2id/JWT/Vitest/Supertest. Versõ
 API=/v1; Swagger=/docs; saúde=/v1/health. Controllers=HTTP, services=negócio, DTO=entrada, entity=banco. Imports .js; código inglês, mensagens PT-BR em constants; ValidationPipe+Swagger.
 Organização em qualquer arquivo: responsabilidades nomeadas; lógica do domínio privada/local, utils somente para lógica independente reutilizável. Regra geral em AGENTS.md.
 Toda assinatura: máximo 3 parâmetros; acima disso, objeto explícito (params: Tipo), desestruturação no corpo. updateRole/persistRoleUpdate usam objetos; AuthService obtém repository pelo DataSource.
+Revisão C1–C4: login/me/senha, setup, JWT, usuários e CLIs separados em responsabilidades privadas/locais; testes usam cenários nomeados, sem rest posicional para contornar limite. Contratos/transações preservados; funcionalidades 501 não alteradas. Checks acima reexecutados após refatoração; C4 commit d3ba95e, refatoração posterior ainda sem commit.
 Auth: src/auth/; setup: src/setup/; autorização: src/memberships/guards/ e decorators/; settings: src/units/; CLIs: src/admin/; migrations: src/database/.
 
 ## Invariantes

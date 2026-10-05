@@ -12,8 +12,15 @@ import type { ChangePasswordDto } from './dto/change-password.dto.js';
 import type { CurrentUserResponseDto } from './dto/current-user-response.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { LoginResponseDto } from './dto/login-response.dto.js';
-import { DataSource, type Repository } from 'typeorm';
+import { DataSource, type EntityManager, type Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity.js';
+
+type UpdateCredentialsParams = {
+  transactionManager: EntityManager;
+  user: User;
+  passwordHash: string;
+  nextCredentialVersion: number;
+};
 
 @Injectable()
 export class AuthService {
@@ -36,28 +43,36 @@ export class AuthService {
       throw new UnauthorizedException(authErrorMessages.invalidCredentials);
     }
 
-    const passwordMatches = await argon2.verify(
-      user.passwordHash,
-      loginDto.password,
-    );
+    await this.validatePassword(user, loginDto.password);
+    await this.ensureActiveMembership(user.id);
+    return this.issueAccessToken(user);
+  }
 
-    if (!passwordMatches) {
+  private async validatePassword(user: User, password: string): Promise<void> {
+    if (!(await argon2.verify(user.passwordHash, password))) {
       throw new UnauthorizedException(authErrorMessages.invalidCredentials);
     }
+  }
 
+  private async ensureActiveMembership(userId: string): Promise<void> {
     const activeMemberships = await this.membershipsRepository.countBy({
-      userId: user.id,
+      userId,
       isActive: true,
     });
 
     if (activeMemberships === 0) {
       throw new UnauthorizedException(authErrorMessages.invalidCredentials);
     }
+  }
 
+  private async issueAccessToken(
+    user: User,
+    credentialVersion = user.credentialVersion,
+  ): Promise<LoginResponseDto> {
     const accessToken = await this.jwtService.signAsync({
       sub: user.id,
       username: user.username,
-      credentialVersion: user.credentialVersion,
+      credentialVersion,
     });
 
     return { accessToken };
@@ -76,6 +91,13 @@ export class AuthService {
       order: { createdAt: 'ASC' },
     });
 
+    return this.mapCurrentUserResponse(user, memberships);
+  }
+
+  private mapCurrentUserResponse(
+    user: User,
+    memberships: Membership[],
+  ): CurrentUserResponseDto {
     return {
       user: {
         id: user.id,
@@ -95,49 +117,49 @@ export class AuthService {
 
   async changePassword(
     userId: string,
-    dto: ChangePasswordDto,
+    passwordChange: ChangePasswordDto,
   ): Promise<LoginResponseDto> {
     const user = await this.usersService.findUserEntityById(userId);
     if (!user) {
       throw new UnauthorizedException(authErrorMessages.invalidCredentials);
     }
 
-    const passwordMatches = await argon2.verify(
-      user.passwordHash,
-      dto.currentPassword,
-    );
-    if (!passwordMatches) {
-      throw new UnauthorizedException(authErrorMessages.invalidCredentials);
-    }
+    await this.validatePassword(user, passwordChange.currentPassword);
 
-    const newPasswordHash = await argon2.hash(dto.newPassword);
+    const newPasswordHash = await argon2.hash(passwordChange.newPassword);
     const nextCredentialVersion = user.credentialVersion + 1;
-    return this.dataSource.transaction(async (manager) => {
-      const result = await manager.update(
-        User,
-        {
-          id: user.id,
-          credentialVersion: user.credentialVersion,
-        },
-        {
-          passwordHash: newPasswordHash,
-          credentialVersion: nextCredentialVersion,
-        },
-      );
-
-      if (result.affected !== 1) {
-        throw new UnauthorizedException(
-          authErrorMessages.invalidOrExpiredAccessToken,
-        );
-      }
-
-      const accessToken = await this.jwtService.signAsync({
-        sub: user.id,
-        username: user.username,
-        credentialVersion: nextCredentialVersion,
+    return this.dataSource.transaction(async (transactionManager) => {
+      await this.updateCredentials({
+        transactionManager,
+        user,
+        passwordHash: newPasswordHash,
+        nextCredentialVersion,
       });
-
-      return { accessToken };
+      return this.issueAccessToken(user, nextCredentialVersion);
     });
+  }
+
+  private async updateCredentials(
+    params: UpdateCredentialsParams,
+  ): Promise<void> {
+    const { transactionManager, user, passwordHash, nextCredentialVersion } =
+      params;
+    const result = await transactionManager.update(
+      User,
+      {
+        id: user.id,
+        credentialVersion: user.credentialVersion,
+      },
+      {
+        passwordHash,
+        credentialVersion: nextCredentialVersion,
+      },
+    );
+
+    if (result.affected !== 1) {
+      throw new UnauthorizedException(
+        authErrorMessages.invalidOrExpiredAccessToken,
+      );
+    }
   }
 }

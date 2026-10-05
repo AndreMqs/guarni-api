@@ -1,6 +1,34 @@
 import 'reflect-metadata';
 import { listUsers } from './list-users.js';
 
+type ListedUser = Awaited<ReturnType<typeof listUsers>>[number];
+
+function mapUserToTableRows(user: ListedUser) {
+  const identity = {
+    ID: user.id,
+    Nome: user.name,
+    Username: user.username,
+    'Reset OWNER': user.canResetOwnerPassword ? 'Sim' : 'Não',
+  };
+  return user.memberships.length
+    ? user.memberships.map((link) => ({
+        ...identity,
+        Unidade: link.unitName,
+        'ID da unidade': link.unitId,
+        Papel: link.role,
+        Vínculo: link.isActive ? 'Ativo' : 'Inativo',
+      }))
+    : [
+        {
+          ...identity,
+          Unidade: 'Sem vínculo',
+          'ID da unidade': '-',
+          Papel: '-',
+          Vínculo: '-',
+        },
+      ];
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.length === 1 && ['--help', '-h'].includes(args[0])) {
@@ -37,33 +65,7 @@ async function main() {
       console.log('Nenhum usuário cadastrado.');
       return;
     }
-    console.table(
-      users.flatMap((user) => {
-        const identity = {
-          ID: user.id,
-          Nome: user.name,
-          Username: user.username,
-          'Reset OWNER': user.canResetOwnerPassword ? 'Sim' : 'Não',
-        };
-        return user.memberships.length
-          ? user.memberships.map((link) => ({
-              ...identity,
-              Unidade: link.unitName,
-              'ID da unidade': link.unitId,
-              Papel: link.role,
-              Vínculo: link.isActive ? 'Ativo' : 'Inativo',
-            }))
-          : [
-              {
-                ...identity,
-                Unidade: 'Sem vínculo',
-                'ID da unidade': '-',
-                Papel: '-',
-                Vínculo: '-',
-              },
-            ];
-      }),
-    );
+    console.table(users.flatMap(mapUserToTableRows));
     console.log(
       `${users.length} usuário(s). Uma linha por vínculo com unidade.`,
     );

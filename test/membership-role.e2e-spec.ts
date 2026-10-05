@@ -120,27 +120,67 @@ describe('Membership role changes (PostgreSQL)', () => {
   });
 
   it.each([
-    ['EMPLOYEE', 'EMPLOYEE', 'MANAGER', 403],
-    ['MANAGER', 'OWNER', 'EMPLOYEE', 403],
-    ['MANAGER', 'MANAGER', 'EMPLOYEE', 403],
-    ['MANAGER', 'EMPLOYEE', 'OWNER', 403],
-    ['MANAGER', 'EMPLOYEE', 'MANAGER', 403],
-    ['MANAGER', 'EMPLOYEE', 'EMPLOYEE', 200],
-    ['OWNER', 'OWNER', 'EMPLOYEE', 200],
-  ] as const)('enforces hierarchy %s / %s -> %s (%s)', async (...scenario) => {
-    const [actorRole, targetRole, newRole, status] = scenario;
-    const actor = await createMember(actorRole);
-    const target = await createMember(targetRole);
-    const response = await changeRole({ actor, target, role: newRole });
-    expect(response.status).toBe(status);
-    expect(await db.manager.count(BusinessEvent)).toBe(status === 200 ? 1 : 0);
-    expect(
-      await db.manager.findOneByOrFail(Membership, { id: target.id }),
-    ).toMatchObject({
-      role: status === 200 ? newRole : targetRole,
-      version: status === 200 ? 2 : 1,
-    });
-  });
+    {
+      actorRole: 'EMPLOYEE',
+      targetRole: 'EMPLOYEE',
+      newRole: 'MANAGER',
+      status: 403,
+    },
+    {
+      actorRole: 'MANAGER',
+      targetRole: 'OWNER',
+      newRole: 'EMPLOYEE',
+      status: 403,
+    },
+    {
+      actorRole: 'MANAGER',
+      targetRole: 'MANAGER',
+      newRole: 'EMPLOYEE',
+      status: 403,
+    },
+    {
+      actorRole: 'MANAGER',
+      targetRole: 'EMPLOYEE',
+      newRole: 'OWNER',
+      status: 403,
+    },
+    {
+      actorRole: 'MANAGER',
+      targetRole: 'EMPLOYEE',
+      newRole: 'MANAGER',
+      status: 403,
+    },
+    {
+      actorRole: 'MANAGER',
+      targetRole: 'EMPLOYEE',
+      newRole: 'EMPLOYEE',
+      status: 200,
+    },
+    {
+      actorRole: 'OWNER',
+      targetRole: 'OWNER',
+      newRole: 'EMPLOYEE',
+      status: 200,
+    },
+  ] as const)(
+    'enforces hierarchy $actorRole / $targetRole -> $newRole ($status)',
+    async (scenario) => {
+      const { actorRole, targetRole, newRole, status } = scenario;
+      const actor = await createMember(actorRole);
+      const target = await createMember(targetRole);
+      const response = await changeRole({ actor, target, role: newRole });
+      expect(response.status).toBe(status);
+      expect(await db.manager.count(BusinessEvent)).toBe(
+        status === 200 ? 1 : 0,
+      );
+      expect(
+        await db.manager.findOneByOrFail(Membership, { id: target.id }),
+      ).toMatchObject({
+        role: status === 200 ? newRole : targetRole,
+        version: status === 200 ? 2 : 1,
+      });
+    },
+  );
 
   it('rejects targets from another unit', async () => {
     const otherUnit = await db.manager.save(Unit, { name: 'Other unit' });

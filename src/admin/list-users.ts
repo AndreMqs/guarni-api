@@ -21,23 +21,25 @@ export async function listUsers(db: DataSource) {
     relations: { unit: true },
     order: { unit: { name: 'ASC', id: 'ASC' } },
   });
-  return users.map((user) => {
-    const links = memberships.filter(
-      (membership) => membership.userId === user.id,
-    );
-    return {
-      id: user.id,
-      name: user.name,
-      username: user.username,
-      canResetOwnerPassword: links.some(
-        (link) => link.role === membershipRoles.owner && link.isActive,
-      ),
-      memberships: links.map((link) => ({
-        unitId: link.unitId,
-        unitName: link.unit.name,
-        role: link.role,
-        isActive: link.isActive,
-      })),
-    };
-  });
+  return users.map((user) => mapUserWithMemberships(user, memberships));
+}
+
+function mapUserWithMemberships(user: User, memberships: Membership[]) {
+  const links = memberships.filter(
+    (membership) => membership.userId === user.id,
+  );
+  return {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    canResetOwnerPassword: links.some(
+      (link) => link.role === membershipRoles.owner && link.isActive,
+    ),
+    memberships: links.map((link) => ({
+      unitId: link.unitId,
+      unitName: link.unit.name,
+      role: link.role,
+      isActive: link.isActive,
+    })),
+  };
 }

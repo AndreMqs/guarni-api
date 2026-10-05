@@ -28,27 +28,33 @@ export class AccessTokenGuard implements CanActivate {
       );
     }
 
-    let payload: AccessTokenPayload;
+    const payload = await this.verifyAccessToken(accessToken);
+    await this.ensureCurrentCredentials(payload);
+    request.user = payload;
+    return true;
+  }
 
+  private async verifyAccessToken(
+    accessToken: string,
+  ): Promise<AccessTokenPayload> {
     try {
-      payload =
-        await this.jwtService.verifyAsync<AccessTokenPayload>(accessToken);
+      return await this.jwtService.verifyAsync<AccessTokenPayload>(accessToken);
     } catch {
       throw new UnauthorizedException(
         authErrorMessages.invalidOrExpiredAccessToken,
       );
     }
+  }
 
+  private async ensureCurrentCredentials(
+    payload: AccessTokenPayload,
+  ): Promise<void> {
     const user = await this.usersService.findUserEntityById(payload.sub);
-
     if (!user || user.credentialVersion !== payload.credentialVersion) {
       throw new UnauthorizedException(
         authErrorMessages.invalidOrExpiredAccessToken,
       );
     }
-
-    request.user = payload;
-    return true;
   }
 
   private extractBearerToken(

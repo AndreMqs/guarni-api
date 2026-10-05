@@ -7,6 +7,18 @@ import {
   resetOwnerPassword,
 } from './reset-owner-password.js';
 
+async function confirmPasswordReset(username: string): Promise<boolean> {
+  const terminal = createInterface({ input: stdin, output: stdout });
+  try {
+    const answer = await terminal.question(
+      'Digite RESET ' + username + ' para confirmar: ',
+    );
+    return answer === 'RESET ' + username;
+  } finally {
+    terminal.close();
+  }
+}
+
 async function main() {
   const [input, ...extra] = process.argv.slice(2);
   if (input === '--help' || input === '-h') {
@@ -52,16 +64,7 @@ async function main() {
     console.log(
       'A senha atual será substituída e os tokens anteriores serão invalidados.',
     );
-    const terminal = createInterface({ input: stdin, output: stdout });
-    let answer: string;
-    try {
-      answer = await terminal.question(
-        `Digite RESET ${user.username} para confirmar: `,
-      );
-    } finally {
-      terminal.close();
-    }
-    if (answer !== `RESET ${user.username}`) {
+    if (!(await confirmPasswordReset(user.username))) {
       console.log('Cancelado. Nenhuma senha foi alterada.');
       return;
     }

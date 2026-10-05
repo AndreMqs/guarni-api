@@ -104,6 +104,10 @@ Funções, métodos e construtores terão no máximo três parâmetros; quando p
 de mais informações, receberão um objeto tipado com nomes descritivos. As chamadas
 de updateRole, persistRoleUpdate e recordRoleChangeEvent já seguem essa regra,
 com o objeto explícito na assinatura e desestruturação dentro do corpo.
+Revisamos também os fluxos anteriores: login, /auth/me, troca de senha, setup,
+validação do JWT, usuários e comandos administrativos. Separamos validação,
+persistência e montagem das respostas sem alterar seus contratos. Rotinas curtas
+continuam diretas; funcionalidades futuras permanecem para seus checkpoints.
 
 Conceitos novos são explicados em passos pequenos e você escreve o núcleo.
 Depois da primeira prática, repetições e testes autorizados podem ser automatizados.
@@ -112,7 +116,9 @@ ficam para um fluxo pronto para testar, executar ou preparar para commit.
 
 Última validação: 46 testes unitários e 58 E2E passaram, além de build,
 tipos (incluindo testes) e lint. A checagem estrutural também confirmou o limite
-de três parâmetros em src e test. Nenhum commit foi feito.
+de três parâmetros em src e test. Esses checks passaram novamente após a revisão
+dos fluxos anteriores. O checkpoint 4 está no commit d3ba95e; a refatoração
+posterior ainda não foi commitada.
 Os E2E usam e limpam guarni_test; não devem apontar para dados reais.
 
 Para conferir manualmente: iniciar a API, abrir /docs, fazer login, usar Authorize

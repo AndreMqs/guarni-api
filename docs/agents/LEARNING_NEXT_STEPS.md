@@ -1,129 +1,83 @@
 ﻿# Guarni — progresso e próximos passos
 
-Atualizado em 04/10/2026. Este guia é para você acompanhar o aprendizado.
-A IA retoma o trabalho pelo PROJECT_CONTEXT.md; as regras de colaboração ficam
-nos arquivos AGENTS. Este documento não precisa ser carregado pelo agente.
+Atualizado em 05/10/2026. Este guia acompanha o aprendizado.
+A IA retoma pelo PROJECT_CONTEXT.md; regras de colaboração ficam nos AGENTS.
 
-## Onde estamos
+## Estratégia atual
 
-Concluímos os quatro primeiros checkpoints pelo fluxo de alteração de papel. A API já cria a primeira unidade e seu
-proprietário, autentica usuários, troca senhas, invalida tokens antigos e verifica
-se a pessoa pode acessar uma unidade. A leitura de configurações já funciona.
+Queremos chegar ao MVP em produção mais rápido sem transformar o projeto em código
+que você não entende. Para cada conceito realmente novo:
 
-Isso ainda não significa que todo o MVP está pronto: várias rotas têm DTOs,
-controllers e entidades preparados, mas os services continuam retornando 501.
-Esses marcadores serão substituídos conforme implementarmos e testarmos as regras.
+1. eu explico o problema e preparo o mínimo necessário;
+2. você implementa o primeiro exemplar real;
+3. revisamos e testamos;
+4. quando você confirma que entendeu, o conceito passa a ser repetição;
+5. endpoints, DTOs, testes e usos equivalentes podem ser automatizados.
 
-### 1. Setup seguro — concluído
+Não vamos mais manter um checkpoint inteiro manual só porque uma parte dele é nova.
+O frontend continua congelado; a integração guarni-web -> guarni-api será uma etapa
+separada depois do backend MVP.
 
-Você implementou POST /v1/setup/owner com X-Setup-Token. User, Unit e Membership
-OWNER são criados na mesma transação. Uma falha reverte tudo; o advisory lock
-impede dois bootstraps simultâneos. Uma unidade existente bloqueia novo setup.
+## O que já foi praticado
 
-Praticamos transação, commit, rollback e concorrência. O token de setup autoriza
-o primeiro cadastro; ele não recupera contas nem permite repetir o bootstrap.
+### 1. Setup seguro
+POST /v1/setup/owner cria User, Unit e Membership OWNER na mesma transação.
+Você praticou transação, rollback, advisory lock e concorrência de bootstrap.
 
-### 2. Senha e revogação — concluído
+### 2. Senha e revogação
+credentialVersion invalida tokens antigos após troca/reset. Você praticou update
+condicionado, transação e emissão do novo token.
 
-O guard confere o JWT e compara credentialVersion com o usuário no banco.
-PUT /v1/auth/password exige a senha atual, grava o novo hash e incrementa a versão.
-A resposta traz um novo accessToken; os antigos deixam de autorizar novas requisições.
+### 3. Acesso por unidade
+AccessTokenGuard + UnitMembershipGuard + @CurrentMembership centralizam identidade
+e vínculo ativo da unidade.
 
-A atualização condicionada à versão evita que duas trocas simultâneas se
-sobrescrevam. Se a assinatura do novo token falhar, a transação reverte a mudança.
-Você confirmou a troca e o uso do novo token no Swagger.
+### 4. Hierarquia, versão e eventos
+PATCH de role pratica lock pessimista, proteção do último OWNER, expectedVersion,
+snapshots e BusinessEvent na mesma transação. Listagem/detalhe de memberships foi
+automatizada depois como repetição.
 
-Também existem comandos administrativos:
+### 5. Dia operacional — núcleo aprendido
+No commit d60f587 você implementou ClockService, Luxon, timezone IANA e a regra
+do corte operacional. Com fechamento 03:00, 02:59 ainda pertence ao dia anterior
+e 03:00 inicia o novo dia. Você confirmou os testes do cálculo passando.
 
-```powershell
-npm run admin:list-users
-npm run owner:reset-password -- username.do.owner
-```
+O restante do C5 pode ser automatizado: persistir/reusar operational_days,
+recuperar a corrida de duas requests pela constraint UNIQUE(unitId,date),
+expor GET /v1/units/:unitId/context, documentar o response e cobrir o fluxo com
+testes repetitivos.
 
-O primeiro identifica as contas sem expor hashes. O segundo exige OWNER ativo,
-confirma o alvo e mostra uma nova senha após gravá-la. Ele também invalida tokens
-anteriores. A senha gerada não expira e não há troca obrigatória no primeiro login.
+## Próximos núcleos novos
 
-### 3. Acesso por unidade — concluído
+| Tema | O que você precisa praticar | O que pode ser automatizado depois |
+|---|---|---|
+| Settings | Nenhum conceito novo relevante; expectedVersion já foi praticado | PATCH settings, conflito, evento e testes equivalentes |
+| Equipe | Nenhum para cadastro/reset/reativação; padrões já praticados | User+Membership transacional, reset, reativação e testes |
+| Execução concorrente | Primeiro fluxo real de execução sob lock, revalidando estado | takeover, DONE/NOT_DONE e variações equivalentes |
+| Scheduler | Primeiro job idempotente + reconciliação após restart | fechamento em lote e rotinas derivadas |
+| Fotos/storage | Um upload multipart completo até storage privado/metadata | leitura assinada, substituição, retenção e órfãs |
+| Índice parcial | Entender/criar o primeiro UNIQUE parcial | demais índices comuns sem aula |
+| Agregações | Uma agregação real com QueryBuilder/SQL | dashboard e histórico derivados |
 
-AccessTokenGuard identifica a pessoa; UnitMembershipGuard verifica seu vínculo
-ativo com a unidade da URL. O guard valida o UUID, consulta os três critérios
-juntos e anexa a membership à request. @CurrentMembership entrega esse contexto
-ao controller. GET /v1/units/:unitId/settings usa a unidade autorizada.
+BusinessEvents, DTOs, Swagger, autorização por membership, transações,
+expectedVersion e locks equivalentes já podem ser automatizados quando não houver
+um problema novo por trás.
 
-Testamos acesso permitido, ausência de token, UUID inválido, outra unidade,
-vínculo de outra pessoa e vínculo inativo. A confirmação manual de settings no
-Swagger ainda não foi registrada; o teste automatizado passou.
+## Marcos do produto
 
-## 4. Hierarquia e último OWNER — alteração de papel validada
+### Marco A — Backend MVP funcional
+Completar equipe, settings, dia operacional, tarefas, execução, fechamento,
+evidências, correções, dashboard/histórico e auditoria conforme MVP_SPEC.md.
 
-Ter acesso à unidade não significa poder administrar qualquer pessoa nela.
-OWNER administra os três papéis; MANAGER administra somente EMPLOYEE.
-Além disso, a unidade nunca pode ficar sem um OWNER ativo.
+### Marco B — Integração do frontend
+Somente depois do backend: substituir mocks por HTTP preservando
+view -> hook -> api/adaptador -> HTTP, usando IDs, versões, arquivos e erros reais.
 
-Você implementou a alteração de papel: verificamos solicitante/alvo, bloqueamos
-a unidade e preservamos o último OWNER sob concorrência. A versão evita
-sobrescrever dados antigos. O primeiro evento de negócio registra autor, alvo
-e snapshots na mesma transação; se ele falhar, a alteração também é desfeita.
+## Validação
 
-Os 17 novos E2E verificam permissões, isolamento entre unidades, versões,
-donos concorrentes e rollback. A resposta contém apenas id, role e version,
-com documentação no Swagger. A verificação manual ainda não foi registrada.
+Antes de C5: 46 unitários + 68 E2E, build/lint e tipos src+test OK.
+Após o núcleo manual de C5, você confirmou npm test passando.
+A automação do restante de C5 adiciona testes de persistência/concorrência e E2E
+de /context; execute build, lint, unitários e E2E localmente antes de commitar.
 
-Arquivos de partida: src/memberships/memberships.service.ts, controller e DTOs.
-Listagem e detalhe de equipe foram implementados automaticamente como repetição
-dos conceitos praticados. GET memberships aceita search, isActive e role;
-OWNER/MANAGER listam todos os papéis da unidade. No detalhe, OWNER acessa todos
-e MANAGER somente EMPLOYEE. As respostas não expõem credenciais e estão no Swagger.
-Os dez novos cenários de teste cobrem filtros, permissões e isolamento.
-Cadastro, desativação, reativação e reset pela API de equipe continuam pendentes.
-
-## Depois disso
-
-| Checkpoint | Problema que vamos resolver |
-|---|---|
-| 5. Dia operacional | Calcular o dia que fecha às 03:00, usando timezone IANA, Luxon e relógio testável. |
-| 6. expectedVersion | Impedir que duas telas sobrescrevam configurações; aprofundar a atualização condicionada já praticada na senha. |
-| 7. Eventos de negócio | Gravar alteração e histórico before/after na mesma transação, sem apagar eventos anteriores. |
-| 8. Execução concorrente | Coordenar execução, takeover e fechamento, validando novamente o estado sob lock. |
-| 9. Scheduler | Fechar dias de forma idempotente e recuperar trabalho após reinícios. |
-| 10. Fotos e storage | Receber multipart, validar/processar imagens e usar storage privado com URLs assinadas. |
-| 11. Índice parcial | Garantir no banco somente uma evidência vigente por execução. |
-| 12. Dashboard/histórico | Usar agregações para produzir resumos e métricas. |
-
-Integração com guarni-web fica para depois da preparação do backend.
-As bibliotecas novas serão introduzidas na etapa correspondente.
-
-Os contratos completos ficam em [MVP_SPEC.md](../MVP_SPEC.md), para consulta
-quando chegarmos a cada funcionalidade. Este guia acompanha a aprendizagem;
-PROJECT_CONTEXT.md resume o estado para a IA. O levantamento antigo das APIs
-foi consolidado na especificação, sem manter dois planos concorrentes.
-
-## Como seguimos
-
-Em qualquer arquivo trabalhado, separamos responsabilidades em funções com nomes
-descritivos. Regras específicas ficam em métodos privados ou funções locais;
-utils recebe lógica independente do domínio e reutilizável. Evitamos criar funções
-sem ganho de clareza. Essa organização preserva o comportamento e a transação.
-Funções, métodos e construtores terão no máximo três parâmetros; quando precisarem
-de mais informações, receberão um objeto tipado com nomes descritivos. As chamadas
-de updateRole, persistRoleUpdate e recordRoleChangeEvent já seguem essa regra,
-com o objeto explícito na assinatura e desestruturação dentro do corpo.
-Revisamos também os fluxos anteriores: login, /auth/me, troca de senha, setup,
-validação do JWT, usuários e comandos administrativos. Separamos validação,
-persistência e montagem das respostas sem alterar seus contratos. Rotinas curtas
-continuam diretas; funcionalidades futuras permanecem para seus checkpoints.
-
-Conceitos novos são explicados em passos pequenos e você escreve o núcleo.
-Depois da primeira prática, repetições e testes autorizados podem ser automatizados.
-Durante a escrita, a revisão é por leitura. Formatação e verificações pesadas
-ficam para um fluxo pronto para testar, executar ou preparar para commit.
-
-Última validação: 46 testes unitários e 68 E2E passaram, além de build,
-tipos (incluindo testes) e lint. A checagem estrutural também confirmou o limite
-de três parâmetros em src e test. Esses checks passaram novamente após a entrega
-da listagem e do detalhe. Este incremento ainda não foi commitado.
-Os E2E usam e limpam guarni_test; não devem apontar para dados reais.
-
-Para conferir manualmente: iniciar a API, abrir /docs, fazer login, usar Authorize
-e obter o unitId em /v1/auth/me. Após trocar a senha, substituir o token no Swagger.
+Os E2E usam e limpam guarni_test; nunca apontar para dados reais.

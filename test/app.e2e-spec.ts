@@ -6,9 +6,14 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { setupApp } from './../src/app.setup.js';
 import { AppModule } from './../src/app.module.js';
-import { User } from './../src/users/entities/user.entity.js';
-import { Unit } from './../src/units/entities/unit.entity.js';
 import { Membership } from './../src/memberships/entities/membership.entity.js';
+import {
+  membershipRoles,
+  type MembershipRole,
+} from './../src/memberships/memberships.constants.js';
+import { OperationalDay } from './../src/operational-days/entities/operational-day.entity.js';
+import { Unit } from './../src/units/entities/unit.entity.js';
+import { User } from './../src/users/entities/user.entity.js';
 import { UsersService } from './../src/users/users.service.js';
 
 const validUserPayload = {
@@ -22,6 +27,7 @@ describe('App (e2e)', () => {
   let usersRepository: Repository<User>;
   let unitsRepository: Repository<Unit>;
   let membershipsRepository: Repository<Membership>;
+  let operationalDaysRepository: Repository<OperationalDay>;
 
   beforeAll(async () => {
     const testingModule: TestingModule = await Test.createTestingModule({
@@ -40,15 +46,23 @@ describe('App (e2e)', () => {
     usersRepository = dataSource.getRepository(User);
     unitsRepository = dataSource.getRepository(Unit);
     membershipsRepository = dataSource.getRepository(Membership);
+    operationalDaysRepository = dataSource.getRepository(OperationalDay);
   });
 
-  beforeEach(async () => {
+  const clean = async () => {
+    await operationalDaysRepository.deleteAll();
     await membershipsRepository.deleteAll();
     await unitsRepository.deleteAll();
     await usersRepository.deleteAll();
-  });
+  };
 
-  const createActiveMembershipForUser = async (userId: string) => {
+  beforeEach(clean);
+  afterEach(clean);
+
+  const createActiveMembershipForUser = async (
+    userId: string,
+    role: MembershipRole = membershipRoles.owner,
+  ) => {
     const unit = await unitsRepository.save(
       unitsRepository.create({ name: 'Guarni Teste' }),
     );
@@ -56,11 +70,23 @@ describe('App (e2e)', () => {
       membershipsRepository.create({
         unitId: unit.id,
         userId,
-        role: 'OWNER',
+        role,
         isActive: true,
       }),
     );
     return unit;
+  };
+
+  const login = async () => {
+    const response = await request(app.getHttpServer())
+      .post('/v1/auth/login')
+      .send({
+        username: validUserPayload.username,
+        password: validUserPayload.password,
+      })
+      .expect(200);
+
+    return response.body.accessToken as string;
   };
 
   afterAll(async () => {
@@ -89,6 +115,7 @@ describe('App (e2e)', () => {
         .expect(404);
     });
   });
+
   describe('/v1/auth/login', () => {
     it('returns an access token for valid normalized credentials', async () => {
       const createdUserResponse = {
@@ -225,6 +252,87 @@ describe('App (e2e)', () => {
       expect(response.body.message).toBe(
         'Token de acesso inválido ou expirado.',
       );
+    });
+  });
+
+  describe('/v1/units/:unitId/context', () => {
+    it.each([
+      [
+        membershipRoles.owner,
+        {
+          canManageTasks: true,
+          canManageUsers: true,
+          canManageOwnersAndManagers: true,
+          canManageSettings: true,
+          canViewAudit: true,
+          canCorrectAnyExecution: true,
+        },
+      ],
+      [
+        membershipRoles.manager,
+        {
+          canManageTasks: true,
+          canManageUsers: true,
+          canManageOwnersAndManagers: false,
+          canManageSettings: true,
+          canViewAudit: false,
+          canCorrectAnyExecution: true,
+        },
+      ],
+      [
+        membershipRoles.employee,
+        {
+          canManageTasks: false,
+          canManageUsers: false,
+          canManageOwnersAndManagers: false,
+          canManageSettings: false,
+          canViewAudit: false,
+          canCorrectAnyExecution: false,
+        },
+      ],
+    ])('returns operational context and permissions for %s', async (role, permissions) => {
+      const user = await app.get(UsersService).create(validUserPayload);
+      const unit = await createActiveMembershipForUser(user.id, role);
+      const accessToken = await login();
+
+      const firstResponse = await request(app.getHttpServer())
+        .get(`/v1/units/${unit.id}/context`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      const secondResponse = await request(app.getHttpServer())
+        .get(`/v1/units/${unit.id}/context`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(firstResponse.body.unit).toMatchObject({
+        id: unit.id,
+        name: 'Guarni Teste',
+        timezone: 'America/Sao_Paulo',
+      });
+      expect(firstResponse.body.unit.closingTime).toMatch(/^03:00(?::00)?$/);
+      expect(firstResponse.body.membership).toEqual({
+        id: expect.any(String),
+        role,
+      });
+      expect(firstResponse.body.permissions).toEqual(permissions);
+      expect(firstResponse.body.operationalDay).toEqual(
+        secondResponse.body.operationalDay,
+      );
+      expect(firstResponse.body.operationalDay.date).toMatch(
+        /^\d{4}-\d{2}-\d{2}$/,
+      );
+      expect(firstResponse.body.operationalDay.isClosed).toBe(false);
+
+      const opensAt = new Date(firstResponse.body.operationalDay.opensAt);
+      const closesAt = new Date(firstResponse.body.operationalDay.closesAt);
+      const serverTime = new Date(firstResponse.body.serverTime);
+
+      expect(serverTime.getTime()).toBeGreaterThanOrEqual(opensAt.getTime());
+      expect(serverTime.getTime()).toBeLessThan(closesAt.getTime());
+      expect(
+        await operationalDaysRepository.countBy({ unitId: unit.id }),
+      ).toBe(1);
     });
   });
 });

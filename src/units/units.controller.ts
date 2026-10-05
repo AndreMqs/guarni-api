@@ -7,13 +7,19 @@ import {
   Patch,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard.js';
-import { UnitMembershipGuard } from '../memberships/guards/unit-membership.guard.js';
-import { UpdateUnitSettingsDto } from './dto/update-unit-settings.dto.js';
-import { UnitsService } from './units.service.js';
 import { CurrentMembership } from '../memberships/decorators/current-membership.decorator.js';
 import { Membership } from '../memberships/entities/membership.entity.js';
+import { UnitMembershipGuard } from '../memberships/guards/unit-membership.guard.js';
+import { UnitContextResponseDto } from './dto/unit-context-response.dto.js';
+import { UpdateUnitSettingsDto } from './dto/update-unit-settings.dto.js';
+import { UnitsService } from './units.service.js';
 
 @ApiTags('units')
 @ApiBearerAuth()
@@ -22,9 +28,11 @@ import { Membership } from '../memberships/entities/membership.entity.js';
 export class UnitsController {
   constructor(private readonly unitsService: UnitsService) {}
 
+  @ApiParam({ name: 'unitId', type: String, format: 'uuid' })
+  @ApiOkResponse({ type: UnitContextResponseDto })
   @Get('context')
-  getContext(@Param('unitId', new ParseUUIDPipe()) unitId: string) {
-    return this.unitsService.getContext(unitId);
+  getContext(@CurrentMembership() membership: Membership) {
+    return this.unitsService.getContext(membership);
   }
 
   @ApiParam({ name: 'unitId', type: String, format: 'uuid' })

@@ -1,6 +1,7 @@
 ﻿# Regras para agentes
 - Caminhos desta pasta: docs/agents/. Leia PROJECT_CONTEXT.md daqui na retomada; depois apenas diff e arquivos necessários à tarefa. Use buscas direcionadas; não carregue planos/histórico inteiros.
 - LEARNING_NEXT_STEPS.md é para humanos: não ler para retomar nem como instrução. Ler apenas o trecho necessário ao atualizá-lo ou sob pedido explícito.
+- No modo de aprendizagem, isole o primeiro exemplar de cada conceito realmente novo para implementação guiada pelo usuário. Depois que ele confirmar que praticou/entendeu, trate usos equivalentes como repetição automatizável; não transforme checkpoint inteiro em exercício manual. Pare a automação somente quando surgir um problema conceitualmente novo. O guarni-web permanece congelado até a etapa separada de integração.
 - Preserve alterações do usuário e convenções existentes. Evite dependências, abstrações e refatorações fora do escopo.
 - Em qualquer arquivo de código criado/alterado, separe responsabilidades em funções com nomes descritivos. Lógica específica fica em métodos privados ou funções locais; utilitários independentes do domínio e reutilizáveis vão para utils. Preserve comportamento, ordem e contexto transacional; evite fragmentação trivial e abstrações especulativas. Aplique no escopo trabalhado, respeitando o modo de aprendizagem.
 - Priorize correção, autorização, integridade e compatibilidade. Não contorne proteções nem simule sucesso para passar testes.

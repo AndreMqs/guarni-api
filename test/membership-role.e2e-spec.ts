@@ -10,6 +10,7 @@ import { AppModule } from '../src/app.module.js';
 import { setupApp } from '../src/app.setup.js';
 import { BusinessEvent } from '../src/business-events/entities/business-event.entity.js';
 import { Membership } from '../src/memberships/entities/membership.entity.js';
+import { OperationalDay } from '../src/operational-days/entities/operational-day.entity.js';
 import {
   membershipManagementErrorMessages,
   type MembershipRole,
@@ -28,6 +29,7 @@ describe('Membership reads and role changes (PostgreSQL)', () => {
   const clean = async () => {
     if (!verifiedTestDatabase) return;
     await db.manager.deleteAll(BusinessEvent);
+    await db.manager.deleteAll(OperationalDay);
     await db.manager.deleteAll(Membership);
     await db.manager.deleteAll(Unit);
     await db.manager.deleteAll(User);

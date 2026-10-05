@@ -10,6 +10,7 @@ import { setupApp } from '../src/app.setup.js';
 import { User } from '../src/users/entities/user.entity.js';
 import { Unit } from '../src/units/entities/unit.entity.js';
 import { Membership } from '../src/memberships/entities/membership.entity.js';
+import { OperationalDay } from '../src/operational-days/entities/operational-day.entity.js';
 import { SETUP_LOCK_KEY } from '../src/setup/setup.constants.js';
 import type { SetupOwnerDto } from '../src/setup/dto/setup-owner.dto.js';
 import { resetOwnerPassword } from '../src/admin/reset-owner-password.js';
@@ -36,6 +37,7 @@ describe('POST /v1/setup/owner (PostgreSQL)', () => {
       .send(body);
   const clean = async () => {
     if (!verifiedTestDatabase) return;
+    await db.manager.deleteAll(OperationalDay);
     await db.manager.deleteAll(Membership);
     await db.manager.deleteAll(Unit);
     await db.manager.deleteAll(User);

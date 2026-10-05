@@ -6,7 +6,7 @@ nos arquivos AGENTS. Este documento não precisa ser carregado pelo agente.
 
 ## Onde estamos
 
-Concluímos os três primeiros checkpoints. A API já cria a primeira unidade e seu
+Concluímos os quatro primeiros checkpoints pelo fluxo de alteração de papel. A API já cria a primeira unidade e seu
 proprietário, autentica usuários, troca senhas, invalida tokens antigos e verifica
 se a pessoa pode acessar uma unidade. A leitura de configurações já funciona.
 
@@ -55,18 +55,23 @@ Testamos acesso permitido, ausência de token, UUID inválido, outra unidade,
 vínculo de outra pessoa e vínculo inativo. A confirmação manual de settings no
 Swagger ainda não foi registrada; o teste automatizado passou.
 
-## Próximo: 4. Hierarquia e último OWNER
+## 4. Hierarquia e último OWNER — alteração de papel validada
 
 Ter acesso à unidade não significa poder administrar qualquer pessoa nela.
 OWNER administra os três papéis; MANAGER administra somente EMPLOYEE.
 Além disso, a unidade nunca pode ficar sem um OWNER ativo.
 
-O primeiro exercício será uma alteração de papel ou desativação. Vamos aprender
-a verificar ator e alvo e usar lock pessimista para preservar o último OWNER
-mesmo quando duas requisições tentam alterá-los ao mesmo tempo.
+Você implementou a alteração de papel: verificamos solicitante/alvo, bloqueamos
+a unidade e preservamos o último OWNER sob concorrência. A versão evita
+sobrescrever dados antigos. O primeiro evento de negócio registra autor, alvo
+e snapshots na mesma transação; se ele falhar, a alteração também é desfeita.
+
+Os 17 novos E2E verificam permissões, isolamento entre unidades, versões,
+donos concorrentes e rollback. A resposta contém apenas id, role e version,
+com documentação no Swagger. A verificação manual ainda não foi registrada.
 
 Arquivos de partida: src/memberships/memberships.service.ts, controller e DTOs.
-Ainda não vamos implementar toda a gestão de equipe de uma vez.
+Desativação, reativação e demais rotas de equipe continuam pendentes.
 
 ## Depois disso
 
@@ -91,13 +96,23 @@ foi consolidado na especificação, sem manter dois planos concorrentes.
 
 ## Como seguimos
 
+Em qualquer arquivo trabalhado, separamos responsabilidades em funções com nomes
+descritivos. Regras específicas ficam em métodos privados ou funções locais;
+utils recebe lógica independente do domínio e reutilizável. Evitamos criar funções
+sem ganho de clareza. Essa organização preserva o comportamento e a transação.
+Funções, métodos e construtores terão no máximo três parâmetros; quando precisarem
+de mais informações, receberão um objeto tipado com nomes descritivos. As chamadas
+de updateRole, persistRoleUpdate e recordRoleChangeEvent já seguem essa regra,
+com o objeto explícito na assinatura e desestruturação dentro do corpo.
+
 Conceitos novos são explicados em passos pequenos e você escreve o núcleo.
 Depois da primeira prática, repetições e testes autorizados podem ser automatizados.
 Durante a escrita, a revisão é por leitura. Formatação e verificações pesadas
 ficam para um fluxo pronto para testar, executar ou preparar para commit.
 
-Última validação registrada: 46 testes unitários e 41 E2E passaram, além de build,
-tipos e lint. Esse é o resultado da etapa anterior, não uma nova execução em outubro.
+Última validação: 46 testes unitários e 58 E2E passaram, além de build,
+tipos (incluindo testes) e lint. A checagem estrutural também confirmou o limite
+de três parâmetros em src e test. Nenhum commit foi feito.
 Os E2E usam e limpam guarni_test; não devem apontar para dados reais.
 
 Para conferir manualmente: iniciar a API, abrir /docs, fazer login, usar Authorize

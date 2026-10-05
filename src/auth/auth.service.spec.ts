@@ -1,9 +1,8 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { Test, type TestingModule } from '@nestjs/testing';
 import * as argon2 from 'argon2';
-import { Membership } from '../memberships/entities/membership.entity.js';
+import type { Membership } from '../memberships/entities/membership.entity.js';
 import { User } from '../users/entities/user.entity.js';
 import { UsersService } from '../users/users.service.js';
 import { authErrorMessages } from './auth.constants.js';
@@ -34,11 +33,15 @@ describe('AuthService', () => {
   beforeEach(async () => {
     vi.resetAllMocks();
     transaction.mockImplementation((callback) => callback({ update }));
+    membershipsRepository = { countBy: vi.fn(), find: vi.fn() };
 
     const testingModule: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
-        { provide: DataSource, useValue: { transaction } },
+        {
+          provide: DataSource,
+          useValue: { transaction, getRepository: () => membershipsRepository },
+        },
         {
           provide: UsersService,
           useValue: {
@@ -47,19 +50,12 @@ describe('AuthService', () => {
           },
         },
         { provide: JwtService, useValue: { signAsync: vi.fn() } },
-        {
-          provide: getRepositoryToken(Membership),
-          useValue: { countBy: vi.fn(), find: vi.fn() },
-        },
       ],
     }).compile();
 
     authService = testingModule.get(AuthService);
     usersService = testingModule.get<UsersServiceMock>(UsersService);
     jwtService = testingModule.get<JwtServiceMock>(JwtService);
-    membershipsRepository = testingModule.get<MembershipsRepositoryMock>(
-      getRepositoryToken(Membership),
-    );
   });
 
   it('returns an access token for valid credentials with an active membership', async () => {

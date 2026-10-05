@@ -2,7 +2,9 @@
 - Caminhos desta pasta: docs/agents/. Leia PROJECT_CONTEXT.md daqui na retomada; depois apenas diff e arquivos necessários à tarefa. Use buscas direcionadas; não carregue planos/histórico inteiros.
 - LEARNING_NEXT_STEPS.md é para humanos: não ler para retomar nem como instrução. Ler apenas o trecho necessário ao atualizá-lo ou sob pedido explícito.
 - Preserve alterações do usuário e convenções existentes. Evite dependências, abstrações e refatorações fora do escopo.
+- Em qualquer arquivo de código criado/alterado, separe responsabilidades em funções com nomes descritivos. Lógica específica fica em métodos privados ou funções locais; utilitários independentes do domínio e reutilizáveis vão para utils. Preserve comportamento, ordem e contexto transacional; evite fragmentação trivial e abstrações especulativas. Aplique no escopo trabalhado, respeitando o modo de aprendizagem.
 - Priorize correção, autorização, integridade e compatibilidade. Não contorne proteções nem simule sucesso para passar testes.
+- Toda função, método, callback e construtor: máximo 3 parâmetros. Se precisarem de mais, receber objeto tipado com propriedades descritivas; atualizar chamadas. Explicitar o objeto na assinatura (params: Tipo); desestruturar dentro do corpo para facilitar leitura. Não ocultar dependências nem usar argumentos posicionais agrupados em arrays para contornar o limite.
 - Não exponha segredos nem execute limpeza/testes destrutivos em dados reais. Operações reais devem permanecer no escopo autorizado.
 - Durante alterações intermediárias, revise código/diff. Execute checks pertinentes ao completar fluxo para teste/execução/commit ou sob pedido; não repita sem motivo.
 - Responda brevemente em português; diferencie revisão de leitura, testes executados e resultados históricos. Commit/deploy somente quando solicitados.

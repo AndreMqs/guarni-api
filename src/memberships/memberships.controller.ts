@@ -12,7 +12,12 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard.js';
 import { CreateUnitUserDto } from './dto/create-unit-user.dto.js';
 import { DeactivateMembershipDto } from './dto/deactivate-membership.dto.js';
@@ -22,6 +27,9 @@ import { ResetMembershipPasswordDto } from './dto/reset-membership-password.dto.
 import { UpdateMembershipRoleDto } from './dto/update-membership-role.dto.js';
 import { UnitMembershipGuard } from './guards/unit-membership.guard.js';
 import { MembershipsService } from './memberships.service.js';
+import { CurrentMembership } from './decorators/current-membership.decorator.js';
+import { Membership } from './entities/membership.entity.js';
+import { UpdateMembershipRoleResponseDto } from './dto/update-membership-role-response.dto.js';
 
 @ApiTags('memberships')
 @ApiBearerAuth()
@@ -55,12 +63,19 @@ export class MembershipsController {
   }
 
   @Patch('memberships/:membershipId')
+  @ApiParam({ name: 'unitId', type: String, format: 'uuid' })
+  @ApiOkResponse({ type: UpdateMembershipRoleResponseDto })
   updateRole(
-    @Param('unitId', new ParseUUIDPipe()) unitId: string,
-    @Param('membershipId', new ParseUUIDPipe()) membershipId: string,
-    @Body() dto: UpdateMembershipRoleDto,
-  ) {
-    return this.membershipsService.updateRole(unitId, membershipId, dto);
+    @Param('membershipId', new ParseUUIDPipe()) membershipToUpdateId: string,
+    @CurrentMembership() requestingMembership: Membership,
+    @Body() roleUpdateData: UpdateMembershipRoleDto,
+  ): Promise<UpdateMembershipRoleResponseDto> {
+    return this.membershipsService.updateRole({
+      requestingMembership,
+      unitId: requestingMembership.unitId,
+      membershipToUpdateId,
+      roleUpdateData,
+    });
   }
 
   @Get('memberships/:membershipId/reassignment-summary')

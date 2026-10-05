@@ -4,7 +4,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
 import { Membership } from '../memberships/entities/membership.entity.js';
 import { UsersService } from '../users/users.service.js';
@@ -18,13 +17,15 @@ import { User } from '../users/entities/user.entity.js';
 
 @Injectable()
 export class AuthService {
+  private readonly membershipsRepository: Repository<Membership>;
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly dataSource: DataSource,
-    @InjectRepository(Membership)
-    private readonly membershipsRepository: Repository<Membership>,
-  ) {}
+  ) {
+    this.membershipsRepository = dataSource.getRepository(Membership);
+  }
 
   async login(loginDto: LoginDto): Promise<LoginResponseDto> {
     const user = await this.usersService.findUserEntityByUsername(
